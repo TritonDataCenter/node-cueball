@@ -10,6 +10,7 @@
     "ipaddr.js": "^1.1.0",
     "mooremachine": "^1.2.0",
     "native-dns": "^0.7.0",
+    "node-uuid": "^1.4.7",
     "restify-clients": "^1.1.2",
     "vasync": "^1.6.3"
   },
