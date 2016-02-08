@@ -118,3 +118,19 @@ mod_tape.test('rebalance: more nodes', function (t) {
 	t.deepEqual(plan.add, ['b3', 'b1', 'b2', 'b4', 'b6']);
 	t.end();
 });
+
+mod_tape.test('rebalance: excess spread out', function (t) {
+	var spares = {
+		'b3': ['c1'],
+		'b1': ['c2'],
+		'b2': ['c3'],
+		'b4': ['c4'],
+		'b5': ['c5'],
+		'b6': ['c6'],
+		'b7': []
+	};
+	var plan = mod_utils.planRebalance(spares, 6, 3);
+	t.deepEqual(plan.remove, ['c1', 'c2', 'c3']);
+	t.deepEqual(plan.add, []);
+	t.end();
+});
