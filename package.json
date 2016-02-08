@@ -1,0 +1,24 @@
+{
+  "name": "cueball",
+  "version": "0.1.0",
+  "description": "",
+  "main": "lib/index.js",
+  "dependencies": {
+    "assert-plus": "^1.0.0",
+    "bloomfilter": "0.0.16",
+    "bunyan": "^1.5.1",
+    "ipaddr.js": "^1.1.0",
+    "mooremachine": "^1.1.3",
+    "native-dns": "^0.7.0",
+    "restify-clients": "^1.1.2",
+    "vasync": "^1.6.3"
+  },
+  "devDependencies": {
+    "tape": "^4.4.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MPL-2.0"
+}
