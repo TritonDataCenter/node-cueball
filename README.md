@@ -164,6 +164,17 @@ Emitted when an existing backend has been removed from DNS.
 Parameters
  - `key` -- String, unique key for this backend
 
+## Kang support
+
+### `mod_cueball.poolMonitor.toKangOptions()`
+
+Returns an options object that can be passed to `mod_kang.knStartServer`. The
+kang options set up snapshots containing a list of all `Pool` objects in the
+system and their associated backends and state.
+
+The returned object is missing the `port` property, which should be added
+before using.
+
 Dynamic Resolver mode
 ---------------------
 
@@ -186,7 +197,7 @@ the name that the `binder` instances are listed under until we already know the
 address of one of the `binder`s. In Dynamic Resolver mode, `cueball` will
 bootstrap using the system resolvers from `/etc/resolv.conf`.
 
-## Example
+### Example
 
 ```js
 const mod_cueball = require('cueball');
