@@ -216,7 +216,7 @@ client.get('/networks/' + uuid, function (err, req, res, data) {
 
 This example code will start by using the system resolvers to resolve
 `binder.coal.joyent.us`. Then, the records found via this lookup will be used
-to lookup `napi.coal.joyent.us`.
+as nameservers to look up `napi.coal.joyent.us`.
 
 When the TTL expires on the records for `binder.coal.joyent.us`, we will use
 the records from the previous lookup as the list of nameservers to query in
