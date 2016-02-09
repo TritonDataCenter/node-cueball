@@ -99,7 +99,8 @@ Claims a connection from the pool ready for use.
 Parameters
 
 - `options` -- optional Object, with keys:
-  - `timeout` -- optional Number, timeout for request in ms (default 5000)
+  - `timeout` -- optional Number, timeout for request in ms
+    (default `Infinity`)
 - `callback` -- Function(err[, handle, connection]), parameters:
   - `err` -- an Error object, if the request could not be fulfilled or timed
     out
@@ -111,6 +112,15 @@ Parameters
 When a client is done with a connection, they must call `handle.release()` to
 return it to the pool. All event handlers should be disconnected from the
 `connection` prior to calling `release()`.
+
+### `ConnectionPool#claimSync()`
+
+Claims a connection from the pool, only if an idle one is immediately
+available. Otherwise, throws an Error.
+
+Returns an Object with keys:
+ - `handle` -- Object, handle to be used to release the connection
+ - `connection` -- Object, actual connection
 
 ## Resolver
 
