@@ -109,6 +109,11 @@ Parameters
   - `connection` -- Object, the actual connection (as returned by the 
     `constructor` given to `new ConnectionPool()`)
 
+Returns either `undefined` (if the callback was called immediately), or a
+"waiter handle", which is an Object having a `cancel()` method. The `cancel()`
+method may be called at any time up to when the `callback` is run, to cancel
+the request to the pool and relinquish any queue positions held.
+
 When a client is done with a connection, they must call `handle.release()` to
 return it to the pool. All event handlers should be disconnected from the
 `connection` prior to calling `release()`.
