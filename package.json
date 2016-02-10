@@ -20,7 +20,7 @@
     "json": "^9.0.3"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tape test/*.test.js"
   },
   "author": "",
   "license": "MPL-2.0"
