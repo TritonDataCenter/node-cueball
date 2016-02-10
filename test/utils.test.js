@@ -134,3 +134,15 @@ mod_tape.test('rebalance: excess spread out', function (t) {
 	t.deepEqual(plan.add, []);
 	t.end();
 });
+
+mod_tape.test('rebalance: odd number', function (t) {
+	var spares = {
+		'b3': ['c1'],
+		'b1': [],
+		'b2': []
+	};
+	var plan = mod_utils.planRebalance(spares, 1, 4);
+	t.deepEqual(plan.remove, []);
+	t.deepEqual(plan.add, ['b1', 'b2', 'b3']);
+	t.end();
+});

@@ -15,7 +15,8 @@
     "vasync": "^1.6.3"
   },
   "devDependencies": {
-    "tape": "^4.4.0"
+    "tape": "^4.4.0",
+    "sinon": "^1.17.3"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
