@@ -9,8 +9,8 @@
 #
 # Tools
 #
+NPM_EXEC	:= $(shell which npm)
 TAP		:= ./node_modules/.bin/tape
-NPM_EXEC	:= npm
 JSON		:= ./node_modules/.bin/json
 
 #
