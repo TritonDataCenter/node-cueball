@@ -214,9 +214,11 @@ const mod_cueball = require('cueball');
 const mod_restify = require('restify-clients');
 
 var client = mod_restify.createJsonClient({
-    resolvers: ['binder.coal.joyent.us']
     url: 'http://napi.coal.joyent.us',
-    agent: new mod_cueball.HttpAgent({ spares: 4, maximum: 10 })
+    agent: new mod_cueball.HttpAgent({
+        resolvers: ['binder.coal.joyent.us'],
+        spares: 4, maximum: 8
+    });
 });
 
 client.get('/networks/' + uuid, function (err, req, res, data) {
