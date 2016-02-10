@@ -11,6 +11,7 @@
 #
 TAP		:= ./node_modules/.bin/tape
 NPM_EXEC	:= npm
+JSON		:= ./node_modules/.bin/json
 
 #
 # Makefile.defs defines variables used as part of the build process.
@@ -41,6 +42,8 @@ all: $(SMF_MANIFESTS) | $(TAP) $(REPO_DEPS)
 	$(NPM) rebuild
 
 $(TAP): | $(NPM_EXEC)
+	$(NPM) install
+$(JSON): | $(NPM_EXEC)
 	$(NPM) install
 
 CLEAN_FILES += $(TAP) ./node_modules/tap
