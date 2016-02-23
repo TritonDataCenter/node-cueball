@@ -64,6 +64,8 @@ Parameters
   - `log` -- optional Object, a `bunyan`-style logger to use
   - `spares` -- optional Number, number of spares wanted in the pool per host
   - `maximum` -- optional Number, maximum number of connections per host
+  - `ping` -- optional String, URL path to use for health checking. Connection
+    is considered still viable if this URL returns a non-5xx response code.
 
 ## Pool
 
@@ -87,6 +89,11 @@ Parameters
   - `maximum` -- optional Number, maximum number of connections per host
   - `maxDNSConcurrency` -- optional Number, max number of DNS queries to issue 
     at once (default 5)
+  - `timeout` -- optional Number, connect timeout in milliseconds
+  - `checkTimeout` -- optional Number, milliseconds of idle time before
+    running `checker` on a connection
+  - `checker` -- optional Function(handle, connection), to be run on idle
+    connections
 
 ### `ConnectionPool#stop()`
 
