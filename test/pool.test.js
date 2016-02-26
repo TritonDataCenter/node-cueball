@@ -23,6 +23,9 @@ var log = mod_bunyan.createLogger({
 	name: 'pool-test',
 	level: process.env.LOGLEVEL || 'debug'
 });
+var recovery = {
+	default: {timeout: 1000, retries: 3, delay: 100 }
+};
 
 function DummyResolver() {
 	resolver = this;
@@ -82,7 +85,10 @@ mod_tape.test('empty pool', function (t) {
 		domain: 'foobar',
 		constructor: function (backend) {
 			return (new DummyConnection(backend));
-		}
+		},
+		recovery: recovery,
+		spares: 2,
+		maximum: 4
 	});
 	t.ok(resolver);
 	t.strictEqual(resolver.state, 'running');
@@ -110,7 +116,8 @@ mod_tape.test('pool with one backend, claimSync', function (t) {
 		maximum: 3,
 		constructor: function (backend) {
 			return (new DummyConnection(backend));
-		}
+		},
+		recovery: recovery
 	});
 	t.ok(resolver);
 
@@ -164,7 +171,8 @@ mod_tape.test('async claim can expand up to max', function (t) {
 		maximum: 2,
 		constructor: function (backend) {
 			return (new DummyConnection(backend));
-		}
+		},
+		recovery: recovery
 	});
 	t.ok(resolver);
 
@@ -214,7 +222,8 @@ mod_tape.test('spares are evenly balanced', function (t) {
 		maximum: 4,
 		constructor: function (backend) {
 			return (new DummyConnection(backend));
-		}
+		},
+		recovery: recovery
 	});
 	t.ok(resolver);
 	t.strictEqual(pool.p_resolver, resolver);
@@ -258,7 +267,8 @@ mod_tape.test('error while claimed', function (t) {
 		maximum: 1,
 		constructor: function (backend) {
 			return (new DummyConnection(backend));
-		}
+		},
+		recovery: recovery
 	});
 	t.ok(resolver);
 
