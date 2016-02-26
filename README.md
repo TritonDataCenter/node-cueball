@@ -31,7 +31,17 @@ const mod_restify = require('restify-clients');
 
 var client = mod_restify.createStringClient({
     url: 'https://us-east.manta.joyent.com',
-    agent: new mod_cueball.HttpsAgent({ spares: 4, maximum: 10 })
+    agent: new mod_cueball.HttpsAgent({
+        spares: 4, maximum: 10,
+        recovery: {
+            default: {
+                timeout: 2000,
+                retries: 5,
+                delay: 250,
+                maxDelay: 1000
+            }
+        }
+    })
 });
 
 client.get('/foobar/public', function (err, req, res, data) {
@@ -59,6 +69,7 @@ Creates an HTTP(S) agent that can be used with the node `http` client API.
 Parameters
 
 - `options` -- Object, with keys:
+  - `recovery` -- Object, a recovery spec (see below)
   - `resolvers` -- optional Array of String, either containing IP addresses to
     use as nameservers, or a single string for Dynamic Resolver mode
   - `log` -- optional Object, a `bunyan`-style logger to use
@@ -66,6 +77,7 @@ Parameters
   - `maximum` -- optional Number, maximum number of connections per host
   - `ping` -- optional String, URL path to use for health checking. Connection
     is considered still viable if this URL returns a non-5xx response code.
+  - `pingInterval` -- optional Number, interval between health check pings
 
 ## Pool
 
@@ -79,6 +91,7 @@ Parameters
   - `constructor` -- Function(backend) -> object, must open a new connection 
     to the given backend and return it
   - `domain` -- String, name to look up to find backends
+  - `recovery` -- Object, a recovery spec (see below)
   - `service` -- optional String, name of SRV service (e.g. `_http._tcp`)
   - `defaultPort` -- optional Number, port to use for plain A/AAAA records
   - `resolvers` -- optional Array of String, either containing IP addresses to
@@ -89,7 +102,6 @@ Parameters
   - `maximum` -- optional Number, maximum number of connections per host
   - `maxDNSConcurrency` -- optional Number, max number of DNS queries to issue 
     at once (default 5)
-  - `timeout` -- optional Number, connect timeout in milliseconds
   - `checkTimeout` -- optional Number, milliseconds of idle time before
     running `checker` on a connection
   - `checker` -- optional Function(handle, connection), to be run on idle
@@ -145,15 +157,13 @@ Parameters
 
 - `options` -- Object, with keys:
   - `domain` -- String, name to look up to find backends
+  - `recovery` -- Object, a recovery spec (see below)
   - `service` -- optional String, name of SRV service (e.g. `_http._tcp`)
   - `defaultPort` -- optional Number, port to use for plain A/AAAA records
   - `resolvers` -- optional Array of String, either containing IP addresses to
     use as nameservers, or a single string for Dynamic Resolver mode (default 
     uses system resolvers from `/etc/resolv.conf`)
   - `log` -- optional Object, a `bunyan`-style logger to use
-  - `timeout` -- optional Number, timeout for DNS queries in ms (default 1000)
-  - `delay` -- optional Number, base delay between failed queries in ms 
-    (default 100)
   - `maxDNSConcurrency` -- optional Number, max number of DNS queries to issue 
     at once (default 5)
 
@@ -196,6 +206,62 @@ system and their associated backends and state.
 
 The returned object is missing the `port` property, which should be added
 before using.
+
+## Recovery objects
+
+To specify the retry and timeout behaviour of Cueball DNS and pooled 
+connections, the "recovery spec object" is a required argument to most
+constructors in the API.
+
+A recovery spec object should always have at least one key, named `"default"`,
+which gives the default settings for any operation.
+
+More specific per-operation settings can also be given as additional keys.
+
+For example:
+
+```js
+{
+  default: {
+    timeout: 2000,
+    retries: 3,
+    delay: 100
+  },
+  dns: {
+    timeout: 5000,
+    retries: 3,
+    delay: 200
+  }
+}
+```
+
+This specifies that DNS-related operations should have a timeout of 5 seconds,
+3 retries, and initial delay of 200ms, while all other operations (e.g.
+`connect()` while connecting to a new backend) should have a timeout of 2
+seconds, 3 retries and initial delay of 100ms.
+
+The `delay` field indicates a time to wait between retry attempts. After each 
+failure, it will be doubled until it exceeds the value of `maxDelay`.
+
+The possible fields in one operation are:
+ - `retries` finite Number >= 0, number of retry attempts
+ - `timeout` finite Number > 0, milliseconds to wait before declaring an 
+   attempt a failure
+ - `maxTimeout` Number > `timeout` (can be `Infinity`), maximum value of
+   `timeout` to be reached with exponential timeout increase
+ - `delay` finite Number >= 0, milliseconds to delay between retry attempts
+ - `maxDelay` Number > `delay` (can be `Infinity`), maximum value of `delay`
+   to be reached with exponential delay increase
+
+And the available operations:
+ - `dns` (all DNS-related operations, lookups etc)
+ - `dns_srv` (specifically lookups on SRV records, this is separate in case you
+   need to deal with certain old buggy DNS servers that have trouble with SRV)
+ - `connect` (connections to backends in a `ConnectionPool`)
+ - `initial` (the very first attempt to connect to a new backend, will fall
+   back to `connect` if not given)
+
+If a given operation has no specification given, it will use `default` instead.
 
 Dynamic Resolver mode
 ---------------------
