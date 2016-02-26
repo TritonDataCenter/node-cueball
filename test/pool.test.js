@@ -278,7 +278,7 @@ mod_tape.test('error while claimed', function (t) {
 				connections[0].connect();
 
 				t.end();
-			}, 200);
+			}, 500);
 		});
 	});
 });
