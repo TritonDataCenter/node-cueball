@@ -78,6 +78,7 @@ Parameters
   - `ping` -- optional String, URL path to use for health checking. Connection
     is considered still viable if this URL returns a non-5xx response code.
   - `pingInterval` -- optional Number, interval between health check pings
+  - `errorOnEmpty` -- optional Boolean, 
 
 ## Pool
 
@@ -120,6 +121,8 @@ Parameters
 - `options` -- optional Object, with keys:
   - `timeout` -- optional Number, timeout for request in ms
     (default `Infinity`)
+  - `errorOnEmpty` -- optional Boolean, if true return error straight away
+    if the pool has no backends at all (i.e., nothing was found in DNS)
 - `callback` -- Function(err[, handle, connection]), parameters:
   - `err` -- an Error object, if the request could not be fulfilled or timed
     out
@@ -195,6 +198,24 @@ Emitted when an existing backend has been removed from DNS.
 
 Parameters
  - `key` -- String, unique key for this backend
+
+## Errors
+
+### `ClaimTimeoutError`
+
+Passed as first argument to `ConnectionPool#claim()`'s callback when the given
+timeout in `options` has been exceeded.
+
+Properties
+ - `pool` -- ConnectionPool
+
+### `NoBackendsError`
+
+Passed as first argument to `ConnectionPool#claim()`'s callback when there are
+no known backends for the pool and the `errorOnEmpty` flag is set.
+
+Properties
+ - `pool` -- ConnectionPool
 
 ## Kang support
 
