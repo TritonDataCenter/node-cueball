@@ -84,14 +84,16 @@ Parameters
 
 ### `new mod_cueball.ConnectionPool(options)`
 
-Creates a new pool of connections.
+Creates a new pool of connections.  There are two ways of using a
+ConnectionPool.  You can either provide your own resolver directly, or provide
+parameters with which to create the default, DNS-based resolver.
 
 Parameters
 
 - `options` -- Object, with keys:
   - `constructor` -- Function(backend) -> object, must open a new connection 
     to the given backend and return it
-  - `domain` -- String, name to look up to find backends
+  - `domain` -- String, name to look up to find backends.
   - `recovery` -- Object, a recovery spec (see below)
   - `service` -- optional String, name of SRV service (e.g. `_http._tcp`)
   - `defaultPort` -- optional Number, port to use for plain A/AAAA records
@@ -107,6 +109,21 @@ Parameters
     running `checker` on a connection
   - `checker` -- optional Function(handle, connection), to be run on idle
     connections
+  - `resolver` -- optional instance of an object meeting the Resolver interface
+    below.  You would typically obtain this object by either creating your own
+    Resolver directly or using the `resolverForIpOrDomain` function.
+
+Do not confuse `resolvers` (the list of IP addresses for the DNS resolvers to
+contact) with `resolver` (a custom object meeting the Resolver interface below).
+
+If you want to use a custom resolver, then you must specify the `resolver`
+property.  In that case, the `resolvers`, `maxDNSConcurrency`, `defaultPort`,
+and `recovery` options are ignored, and the `domain` and `service` properties
+are used only for logging.
+
+Otherwise, if want to use the default DNS-based resolver, do not specify the
+`resolver` property.  A resolver instance will be created based on the other
+configuration properties.
 
 ### `ConnectionPool#stop()`
 
@@ -149,7 +166,7 @@ Returns an Object with keys:
  - `handle` -- Object, handle to be used to release the connection
  - `connection` -- Object, actual connection
 
-## Resolver
+## DNS-based Resolver
 
 ### `new mod_cueball.Resolver(options)`
 
@@ -198,6 +215,95 @@ Emitted when an existing backend has been removed from DNS.
 
 Parameters
  - `key` -- String, unique key for this backend
+
+## Static IP resolver
+
+### `new mod_cueball.StaticIpResolver(options)`
+
+Creates a new static IP resolver.  This object matches the Resolver interface
+above, but emits a fixed list of IP addresses when started.  This list never
+changes.  This is intended for development environments and debugging tools,
+where a user may have provided an explicit IP address rather than a DNS name to
+contact.  See also: `resolverForIpOrDomain()`.
+
+Parameters
+
+- `options` -- Object, with keys:
+  - `backends` -- Array of objects, each having properties:
+    - `address` -- String, an IP address to emit as a backend
+    - `port` -- Number, a port number for this backend
+
+This object provides the same `start()` and `stop()` methods as the Resolver
+class, as well as the same `added` and `removed` events.
+
+## Picking the right resolver
+
+### `resolverForIpOrDomain(options)`
+
+Services that use DNS for service discovery would typically use a DNS-based
+resolver.  But in development environments or with debugging tools, it's useful
+to be able to point a cueball-using program at an instance located at a specific
+IP address and port.  That's what the Static IP resolver is for.
+
+To make this easy for programs that want to support connecting to either
+hostnames or IP addresses, this function is provided to take configuration
+(expected to come from a user, via an environment variable, command-line
+option, or other configuration source), determine whether an IP address or DNS
+name was specified, and return either a DNS-based or static resolver.  If the
+input appears to be neither a valid IPv4 nor IPv6 address nor DNS name, or the
+port number is not valid, then an Error is returned (not thrown).  (If the
+input is missing or has the wrong type, an Error object is thrown, since this
+is a programmer error.)
+
+Parameters
+
+- `options` -- Object, with keys:
+  - `input` -- String, either an IP address or DNS name, with optional port
+    suffix
+  - `resolverConfig` -- Object, a set of additional properties to pass to
+    the resolver constructor.
+
+The `input` string has the form `HOSTNAME[:PORT]`, where the `[:PORT]` suffix is
+optional, and `HOSTNAME` may be either an IP address or DNS name.
+
+**Example:** create a resolver that will emit one backend for an instance at IP
+127.0.0.1 port 2020:
+
+    var resolver = mod_cueball.resolverForIpOrDomain({
+        'input': '127.0.0.1:2020',
+        'resolverConfig': {
+            'recovery': {
+                'default': {
+                    'retries': 1,
+                    'timeout': 1000,
+                    'delay': 1000,
+                    'maxDelay': 1000
+                }
+            }
+        }
+    })
+    /* check whether resolver is an Error */
+
+**Example:** create a resolver that will track instances associated with DNS
+name `mydomain.example.com`:
+
+    var resolver = mod_cueball.resolverForIpOrDomain({
+        'input': 'mydomain.example.com',
+        'resolverConfig': {
+            'recovery': {
+                'default': {
+                    'retries': 1,
+                    'timeout': 1000,
+                    'delay': 1000,
+                    'maxDelay': 1000
+                }
+            }
+        }
+    });
+    /* check whether resolver is an Error */
+
+In these examples, the `input` string is assumed to come from a user
+cueball does the expected thing when given an IP address or DNS name.
 
 ## Errors
 
@@ -284,6 +390,7 @@ And the available operations:
 
 If a given operation has no specification given, it will use `default` instead.
 
+
 Dynamic Resolver mode
 ---------------------
 
@@ -333,3 +440,50 @@ When the TTL expires on the records for `binder.coal.joyent.us`, we will use
 the records from the previous lookup as the list of nameservers to query in
 order to find out what the new records should be. Then, we will use any new
 nameservers we find for the next `napi.coal.joyent.us` lookup as well.
+
+
+Tools
+-----
+
+The `cbresolve` tool is provided to show how cueball would resolve a given
+configuration.  The output format is not committed.  It may change in the
+future.
+
+    usage: cbresolve HOSTNAME[:PORT]                # for DNS-based lookup
+           cbresolve -S | --static IP[:PORT]...     # for static IPs
+    Locate services in DNS using Cueball resolver.
+
+    The following options are available for DNS-based lookups:
+    
+        -f, --follow                periodically re-resolve and report changes
+        -p, --port PORT             default backend port
+        -r, --resolvers IP[,IP...]  list of DNS resolvers
+        -s, --service SERVICE       "service" name (for SRV)
+        -t, --timeout TIMEOUT       timeout for lookups
+    
+**Example:** resolve DNS name "1.moray.us-east.joyent.us":
+
+    $ cbresolve 1.moray.emy-10.joyent.us
+    domain: 1.moray.emy-10.joyent.us
+    timeout: 5000 milliseconds
+    172.27.10.218       80 lLbminikNKjfy+iwDobYBuod7Hs=
+    172.27.10.219       80 iJMaVRehJ2zKfiS55H/lUUFPb9o=
+
+**Example:** resolve IP/port "127.0.0.1:2020".  This is only useful for seeing
+how cueball would parse your input:
+
+    $ cbresolve --static 127.0.0.1:2020
+    using static IP resolver
+    127.0.0.1         2020 xBut/f1D52k1TpDN/miW82qXw6k=
+
+**Example: resolve DNS name "1.moray.us-east.joyent.us" and watch for changes:
+
+    $ cbresolve --follow 1.moray.emy-10.joyent.us
+    domain: 1.moray.emy-10.joyent.us
+    timeout: 5000 milliseconds
+    2016-06-23T00:45:00.312Z added      172.27.10.218:80    (lLbminikNKjfy+iwDobYBuod7Hs=)
+    2016-06-23T00:45:00.314Z added      172.27.10.219:80    (iJMaVRehJ2zKfiS55H/lUUFPb9o=)
+    2016-06-23T00:49:00.478Z removed    172.27.10.218:80    (lLbminikNKjfy+iwDobYBuod7Hs=)
+
+In this example, one of the DNS entries was removed a few minutes after the
+program was started.

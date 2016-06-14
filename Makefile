@@ -25,7 +25,7 @@ include ./tools/mk/Makefile.defs
 #
 DOC_FILES	 = index.md boilerplateapi.md
 JSON_FILES	 = package.json
-JS_FILES	:= $(shell find lib test -name '*.js')
+JS_FILES	:= bin/cbresolve $(shell find lib test -name '*.js')
 JSL_FILES_NODE	 = $(JS_FILES)
 JSSTYLE_FILES	 = $(JS_FILES)
 

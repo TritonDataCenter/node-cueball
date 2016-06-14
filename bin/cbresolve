@@ -1,0 +1,351 @@
+#!/usr/bin/env node
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2016, Joyent, Inc.
+ */
+
+const mod_assert = require('assert-plus');
+const mod_bunyan = require('bunyan');
+const mod_cmdutil = require('cmdutil');
+const mod_cueball = require('..');
+const mod_extsprintf = require('extsprintf');
+const mod_getopt = require('posix-getopt');
+const mod_net = require('net');
+const mod_verror = require('verror');
+const mod_util = require('util');
+
+const VError = mod_verror.VError;
+const printf = mod_extsprintf.printf;
+
+var cbrForceStatic = false;
+var cbrFollow = false;
+var cbrBackends = {};
+var cbrNbackends = 0;
+var cbrDone = false;
+var cbrLog;
+var cbrResolver;
+
+function main()
+{
+	var optstr, parser, option, args;
+	var timeout, resolverConf;
+
+	resolverConf = {};
+	timeout = 5000;
+
+	mod_cmdutil.configure({
+	    'synopses': [
+		'HOSTNAME[:PORT]                # for DNS-based lookup',
+		'-S | --static IP[:PORT]...     # for static IPs'
+	    ],
+
+	    'usageMessage': [
+	        'Locate services in DNS using Cueball resolver.',
+		'',
+		'The following options are available for DNS-based lookups:',
+		'',
+		'    -f, --follow                periodically re-resolve ' +
+		'and report changes',
+		'    -p, --port PORT             default backend port',
+		'    -r, --resolvers IP[,IP...]  list of DNS resolvers',
+		'    -s, --service SERVICE       "service" name (for SRV)',
+		'    -t, --timeout TIMEOUT       timeout for lookups',
+		''
+	    ].join('\n')
+	});
+
+	/*
+	 * By default, we don't log anything, but users can enable logging by
+	 * setting LOG_LEVEL in the environment.
+	 */
+	cbrLog = new mod_bunyan({
+	    'name': 'cbresolve',
+	    'level': process.env['LOG_LEVEL'] || 'fatal'
+	});
+
+	optstr = [
+	    /* general options */
+	    'S(static)',
+
+	    /* DNS-specific options */
+	    'f(follow)',
+	    'p:(port)',
+	    'r:(resolvers)',
+	    's:(service)',
+	    't:(timeout)'
+	].join('');
+	parser = new mod_getopt.BasicParser(optstr, process.argv);
+	while ((option = parser.getopt()) !== undefined) {
+		switch (option.option) {
+		case 'S':
+			cbrForceStatic = true;
+			break;
+
+		case 'f':
+			cbrFollow = true;
+			break;
+
+		case 'p':
+			resolverConf['defaultPort'] =
+			    parseInt(option.optarg, 10);
+			if (isNaN(resolverConf['defaultPort']) ||
+			    resolverConf['defaultPort'] < 0 ||
+			    resolverConf['defaultPort'] > 65535) {
+				mod_cmdutil.usage('bad value for -p/--port: %s',
+				    option.optarg);
+			}
+			break;
+
+		case 'r':
+			if (!resolverConf.hasOwnProperty('resolvers')) {
+				resolverConf['resolvers'] = [];
+			}
+
+			option.optarg.split(',').forEach(function (ip) {
+				if (ip.length === 0) {
+					return;
+				}
+
+				resolverConf['resolvers'].push(ip);
+			});
+			break;
+
+		case 's':
+			resolverConf['service'] = option.optarg;
+			break;
+
+		case 't':
+			timeout = parseTimeInterval(option.optarg);
+			if (timeout instanceof Error) {
+				mod_cmdutil.usage(timeout);
+			}
+			break;
+
+		default:
+			/* error message already emitted */
+			mod_cmdutil.usage();
+			break;
+		}
+	}
+
+	args = process.argv.slice(parser.optind());
+	resolverConf['log'] = cbrLog;
+	if (cbrForceStatic) {
+		resolverConf['backends'] = args.map(function (pair) {
+			var parsed = parseIpPort(pair);
+
+			if (parsed instanceof Error) {
+				mod_cmdutil.usage(parsed);
+			}
+
+			return (parsed);
+		});
+
+		if (resolverConf['backends'].length === 0) {
+			mod_cmdutil.usage();
+		}
+
+		console.error('using static IP resolver');
+
+		if (resolverConf['service'] !== undefined ||
+		    resolverConf['defaultPort'] !== undefined ||
+		    resolverConf['resolvers'] !== undefined) {
+			console.error('note: the -s/--service, -p/--port, ' +
+			    'and -r/--resolvers options are not used with ' +
+			    '-S/--static.');
+		}
+
+		cbrResolver = new mod_cueball.StaticIpResolver(resolverConf);
+	} else {
+		if (args.length != 1) {
+			mod_cmdutil.usage();
+		}
+
+		console.error('domain: %s', args[0]);
+		console.error('timeout: %s millisecond%s', timeout,
+		    timeout == 1 ? '' : 's');
+
+		if (resolverConf['service'] !== undefined) {
+			console.error('service: %s',
+			    resolverConf['service']);
+		}
+
+		if (resolverConf['defaultPort'] !== undefined) {
+			console.error('port: %s',
+			    resolverConf['defaultPort']);
+		}
+
+		if (resolverConf['resolvers'] !== undefined) {
+			console.error('resolvers: %s',
+			    resolverConf['resolvers'].join(', '));
+		}
+
+		resolverConf['recovery'] = {
+		    'default': {
+			'retries': 0,
+			'timeout': timeout,
+			'maxTimeout': timeout,
+			'delay': 0,
+			'maxDelay': 0
+		    }
+		};
+
+		cbrResolver = mod_cueball.resolverForIpOrDomain({
+		    'input': args[0],
+		    'resolverConfig': resolverConf
+		});
+
+		if (cbrResolver instanceof Error) {
+			mod_cmdutil.usage(cbrResolver);
+		}
+	}
+
+	cbrResolver.start();
+	cbrResolver.on('added', cbrPrintAdded);
+	cbrResolver.on('removed', cbrPrintRemoved);
+
+	if (!cbrFollow) {
+		cbrResolver.on('updated', cbrUpdated);
+		process.on('exit', function (code) {
+			if (code === 0) {
+				mod_assert.ok(cbrDone, 'premature exit');
+			}
+		});
+	} else {
+		if (cbrForceStatic) {
+			mod_cmdutil.fail('-f/--follow cannot be used with ' +
+			    '-S/--static');
+		}
+
+		/*
+		 * XXX It's not ideal that cueball unref's its timer here.
+		 * This is the maximum allowed timeout value, according to the
+		 * MDN documentation.
+		 */
+		setInterval(function () {}, Math.pow(2, 31) - 1);
+	}
+}
+
+/*
+ * Given a string of the from "IP_ADDRESS:PORT", returns either:
+ *
+ *    o an object with properties "address" (a valid IP address, as a string)
+ *      and "port" (an integer), if the string has the expected form; or
+ *
+ *    o an error indicating that the string does not have the expected form
+ */
+function parseIpPort(str)
+{
+	var colon, ip, port;
+
+	mod_assert.string(str, 'str');
+	colon = str.lastIndexOf(':');
+	if (colon == -1) {
+		return (new VError('not an "IP:port" pair: %s', str));
+	}
+
+	ip = str.substr(0, colon);
+	port = parseInt(str.substr(colon + 1), 10);
+	if (!mod_net.isIP(ip) || isNaN(port)) {
+		return (new VError('not an "IP:port pair: %s"', str));
+	}
+
+	return ({
+	    'address': ip,
+	    'port': port
+	});
+}
+
+/*
+ * Given a string describing a time interval, return the corresponding number of
+ * milliseconds.  Time intervals consist of a non-negative integer followed by
+ * one of the suffixes "ms" (for milliseconds), "s" (for seconds), or "m" (for
+ * minutes).  The suffix can be omitted, in which case the unit is milliseconds.
+ * If the given string is invalid, an Error is returned.
+ */
+function parseTimeInterval(str)
+{
+	var match, ret;
+
+	match = str.match(/^([1-9][0-9]*)(s|ms|m)?$/);
+	if (match === null) {
+		return (new VError('invalid time interval: %s', str));
+	}
+
+	ret = parseInt(match[1], 10);
+	mod_assert.ok(!isNaN(ret) && ret > 0);
+	if (match[2] == 's') {
+		ret *= 1000;
+	} else if (match[2] == 'm') {
+		ret *= 60000;
+	} else {
+		mod_assert.ok(match[2] === undefined || match[2] == 'ms');
+	}
+
+	return (ret);
+}
+
+/*
+ * Respond to the resolver's "added" event by printing out information about the
+ * instance that was found.
+ */
+function cbrPrintAdded(key, backend)
+{
+	mod_assert.ok(!cbrBackends.hasOwnProperty(key),
+	    'received "added" event for already-existing backend');
+	cbrBackends[key] = backend;
+	cbrNbackends++;
+
+	if (cbrFollow) {
+		printf('%s added   %16s:%-5d (%s)\n',
+		    new Date().toISOString(),
+		    backend.address, backend.port, key);
+	} else {
+		printf('%-16s %5d %s\n', backend.address, backend.port, key);
+	}
+}
+
+/*
+ * Respond to the resolver's "removed" event by printing out information about
+ * the instance that has been removed.
+ */
+function cbrPrintRemoved(key)
+{
+	var old;
+
+	mod_assert.ok(cbrBackends.hasOwnProperty(key),
+	    'received "removed" event for non-existent backend');
+	old = cbrBackends[key];
+	delete (cbrBackends[key]);
+
+	if (!cbrFollow) {
+		/*
+		 * This is extremely unlikely, but ignore if this happens.
+		 */
+		return;
+	}
+
+	printf('%s removed %16s:%-5d (%s)\n', new Date().toISOString(),
+	    old.address, old.port, key);
+}
+
+/*
+ * Invoked in non-follow mode once the resolver has finished emitting the first
+ * set of backends.
+ */
+function cbrUpdated()
+{
+	mod_assert.ok(!cbrFollow);
+	cbrResolver.stop();
+	cbrDone = true;
+
+	if (cbrNbackends === 0) {
+		console.error('error: no backends found');
+		process.exit(1);
+	}
+}
+
+main();
