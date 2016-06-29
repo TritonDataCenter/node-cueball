@@ -98,7 +98,7 @@ mod_tape.test('static resolver: no backends', function (t) {
 
 	nadded = 0;
 	resolver.on('added', function () { nadded++; });
-	resolver.on('updated', function () {
+	resolver.onState('running', function () {
 		t.equal(nadded, 0);
 		t.deepEqual(resolver.list(), {});
 		t.equal(resolver.count(), 0);
@@ -127,7 +127,7 @@ mod_tape.test('static resolver: several backends', function (t) {
 
 	found = [];
 	resolver.on('added', function (key, backend) { found.push(backend); });
-	resolver.on('updated', function () {
+	resolver.onState('running', function () {
 		var expected;
 
 		t.equal(resolver.count(), 3);

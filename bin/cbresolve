@@ -208,7 +208,8 @@ function main()
 	cbrResolver.on('removed', cbrPrintRemoved);
 
 	if (!cbrFollow) {
-		cbrResolver.on('updated', cbrUpdated);
+		cbrResolver.onState('running', cbrRunning);
+		cbrResolver.onState('failed', cbrFailed);
 		process.on('exit', function (code) {
 			if (code === 0) {
 				mod_assert.ok(cbrDone, 'premature exit');
@@ -336,16 +337,22 @@ function cbrPrintRemoved(key)
  * Invoked in non-follow mode once the resolver has finished emitting the first
  * set of backends.
  */
-function cbrUpdated()
+function cbrRunning()
 {
 	mod_assert.ok(!cbrFollow);
 	cbrResolver.stop();
 	cbrDone = true;
+	mod_assert.ok(cbrNbackends > 0);
+}
 
-	if (cbrNbackends === 0) {
-		console.error('error: no backends found');
-		process.exit(1);
+function cbrFailed()
+{
+	if (process.env.DEBUG) {
+		console.error(cbrResolver.getLastError().stack);
+	} else {
+		console.error('error: %s', cbrResolver.getLastError().message);
 	}
+	process.exit(1);
 }
 
 main();

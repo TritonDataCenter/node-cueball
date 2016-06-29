@@ -31,6 +31,7 @@ function DummyResolver() {
 	resolver = this;
 	this.state = 'stopped';
 	mod_events.EventEmitter.call(this);
+	return (new mod_resolver.ResolverFSM(this, {}));
 }
 mod_util.inherits(DummyResolver, mod_events.EventEmitter);
 DummyResolver.prototype.start = function () {
@@ -225,8 +226,8 @@ mod_tape.test('spares are evenly balanced', function (t) {
 		},
 		recovery: recovery
 	});
+	t.ok(pool);
 	t.ok(resolver);
-	t.strictEqual(pool.p_resolver, resolver);
 
 	resolver.emit('added', 'b1', {});
 	resolver.emit('added', 'b2', {});

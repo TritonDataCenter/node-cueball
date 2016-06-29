@@ -78,7 +78,7 @@ Parameters
   - `ping` -- optional String, URL path to use for health checking. Connection
     is considered still viable if this URL returns a non-5xx response code.
   - `pingInterval` -- optional Number, interval between health check pings
-  - `errorOnEmpty` -- optional Boolean, 
+  - `errorOnEmpty` -- optional Boolean
 
 ## Pool
 
@@ -91,19 +91,19 @@ parameters with which to create the default, DNS-based resolver.
 Parameters
 
 - `options` -- Object, with keys:
-  - `constructor` -- Function(backend) -> object, must open a new connection 
+  - `constructor` -- Function(backend) -> object, must open a new connection
     to the given backend and return it
   - `domain` -- String, name to look up to find backends.
   - `recovery` -- Object, a recovery spec (see below)
   - `service` -- optional String, name of SRV service (e.g. `_http._tcp`)
   - `defaultPort` -- optional Number, port to use for plain A/AAAA records
   - `resolvers` -- optional Array of String, either containing IP addresses to
-    use as nameservers, or a single string for Dynamic Resolver mode (default 
+    use as nameservers, or a single string for Dynamic Resolver mode (default
     uses system resolvers from `/etc/resolv.conf`)
   - `log` -- optional Object, a `bunyan`-style logger to use
   - `spares` -- optional Number, number of spares wanted in the pool per host
   - `maximum` -- optional Number, maximum number of connections per host
-  - `maxDNSConcurrency` -- optional Number, max number of DNS queries to issue 
+  - `maxDNSConcurrency` -- optional Number, max number of DNS queries to issue
     at once (default 5)
   - `checkTimeout` -- optional Number, milliseconds of idle time before
     running `checker` on a connection
@@ -143,9 +143,9 @@ Parameters
 - `callback` -- Function(err[, handle, connection]), parameters:
   - `err` -- an Error object, if the request could not be fulfilled or timed
     out
-  - `handle` -- Object, handle to be used to release the connection back to 
+  - `handle` -- Object, handle to be used to release the connection back to
     the pool when work is complete
-  - `connection` -- Object, the actual connection (as returned by the 
+  - `connection` -- Object, the actual connection (as returned by the
     `constructor` given to `new ConnectionPool()`)
 
 Returns either `undefined` (if the callback was called immediately), or a
@@ -166,26 +166,50 @@ Returns an Object with keys:
  - `handle` -- Object, handle to be used to release the connection
  - `connection` -- Object, actual connection
 
-## DNS-based Resolver
+## Resolver
 
-### `new mod_cueball.Resolver(options)`
+### `mod_cueball.Resolver` interface
 
-Creates a "resolver" -- an object which tracks a given service in DNS and
-emits events when backends are added or removed.
+An interface for all "resolvers", objects which take in some kind of
+configuration (e.g. a DNS name) and track a list of "backends" for that
+name. A "backend" is an IP/port pair that describes an endpoint that can
+be connected to to reach a given service.
 
-Parameters
+Resolver exposes the `mooremachine` FSM interface, with the following state
+graph:
 
-- `options` -- Object, with keys:
-  - `domain` -- String, name to look up to find backends
-  - `recovery` -- Object, a recovery spec (see below)
-  - `service` -- optional String, name of SRV service (e.g. `_http._tcp`)
-  - `defaultPort` -- optional Number, port to use for plain A/AAAA records
-  - `resolvers` -- optional Array of String, either containing IP addresses to
-    use as nameservers, or a single string for Dynamic Resolver mode (default 
-    uses system resolvers from `/etc/resolv.conf`)
-  - `log` -- optional Object, a `bunyan`-style logger to use
-  - `maxDNSConcurrency` -- optional Number, max number of DNS queries to issue 
-    at once (default 5)
+                    .start()          error
+            +-------+       +--------+       +------+
+    init -> |stopped| +---> |starting| +---> |failed|
+            +---+---+       +---+----+       +------+
+                ^               |               +
+                |               | ok            |
+                |               v               |
+            +---+----+      +---+---+           |
+            |stopping| <--+ |running|  <--------+
+            +--------+      +-------+       retry success
+                     .stop()
+
+Resolvers begin their life "stopped". When the user calls `.start()`, they
+begin the process of resolving the name/configuration they were given into
+backends.
+
+If the initial attempt to resolve the name/configuration fails, the Resolver
+enters the "failed" state, but continues retrying. If it succeeds, or if any
+later retry succeeds, it moves to the "running" state. The reason why the
+"failed" state exists is so that commandline tools and other short-lived
+processes can make use of it to decide when to "give up" on a name resolution.
+
+Once an attempt has succeeded, the Resolver will begin emitting `added` and
+`removed` events (see below) describing the backends that it has found.
+
+In the "running" state, the Resolver continues to monitor the source of its
+backends (e.g. in DNS by retrying once the TTL expires) and emitting these
+events when changes occur.
+
+Finally, when the `.stop()` method is called, the Resolver transitions to
+"stopping", stops monitoring and emitting events, and comes to rest in the
+"stopped" state where it started.
 
 ### `Resolver#start()`
 
@@ -197,9 +221,27 @@ the names given).
 Stops the resolver. No further events will be emitted unless `start()` is
 called again.
 
+### `Resolver#getLastError()`
+
+Returns the last error experienced by the Resolver. This is particularly useful
+when the Resolver is in the "failed" state, to produce a log message or user
+interface text.
+
+### `Resolver#getState()`
+
+Returns the current state of the Resolver as a string (see diagram above).
+
+Inherited from `mod_mooremachine.FSM`.
+
+### `Resolver#onState(state, cb)`
+
+Registers an event handler to run when the Resolver enters the given state.
+
+Inherited from `mod_mooremachine.FSM`.
+
 ### Event `Resolver->added(key, backend)`
 
-Emitted when a new backend has been found in DNS.
+Emitted when a new backend has been found.
 
 Parameters
  - `key` -- String, a unique key for this backend (will be referenced by any
@@ -211,10 +253,32 @@ Parameters
 
 ### Event `Resolver->removed(key)`
 
-Emitted when an existing backend has been removed from DNS.
+Emitted when an existing backend has been removed.
 
 Parameters
  - `key` -- String, unique key for this backend
+
+## DNS-based name resolver
+
+### `new mod_cueball.DNSResolver(options)`
+
+Creates a Resolver that looks up a name in DNS. This Resolver prefers SRV
+records if they are available, and falls back to A/AAAA records if they cannot
+be found.
+
+Parameters
+
+- `options` -- Object, with keys:
+  - `domain` -- String, name to look up to find backends
+  - `recovery` -- Object, a recovery spec (see below)
+  - `service` -- optional String, name of SRV service (e.g. `_http._tcp`)
+  - `defaultPort` -- optional Number, port to use for plain A/AAAA records
+  - `resolvers` -- optional Array of String, either containing IP addresses to
+    use as nameservers, or a single string for Dynamic Resolver mode (default
+    uses system resolvers from `/etc/resolv.conf`)
+  - `log` -- optional Object, a `bunyan`-style logger to use
+  - `maxDNSConcurrency` -- optional Number, max number of DNS queries to issue
+    at once (default 5)
 
 ## Static IP resolver
 
@@ -336,7 +400,7 @@ before using.
 
 ## Recovery objects
 
-To specify the retry and timeout behaviour of Cueball DNS and pooled 
+To specify the retry and timeout behaviour of Cueball DNS and pooled
 connections, the "recovery spec object" is a required argument to most
 constructors in the API.
 
@@ -367,12 +431,12 @@ This specifies that DNS-related operations should have a timeout of 5 seconds,
 `connect()` while connecting to a new backend) should have a timeout of 2
 seconds, 3 retries and initial delay of 100ms.
 
-The `delay` field indicates a time to wait between retry attempts. After each 
+The `delay` field indicates a time to wait between retry attempts. After each
 failure, it will be doubled until it exceeds the value of `maxDelay`.
 
 The possible fields in one operation are:
  - `retries` finite Number >= 0, number of retry attempts
- - `timeout` finite Number > 0, milliseconds to wait before declaring an 
+ - `timeout` finite Number > 0, milliseconds to wait before declaring an
    attempt a failure
  - `maxTimeout` Number > `timeout` (can be `Infinity`), maximum value of
    `timeout` to be reached with exponential timeout increase

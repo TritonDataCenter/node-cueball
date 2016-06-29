@@ -78,7 +78,7 @@ mod_tape.test('parseIpOrDomain: hostname', function (t) {
 	result = mod_resolver.parseIpOrDomain('1.moray.emy-10.joyent.us');
 	t.ok(!(result instanceof Error));
 	t.equal(result.kind, 'dns');
-	t.equal(result.cons.name, 'CueBallResolver');
+	t.equal(result.cons.name, 'CueBallDNSResolver');
 	t.deepEqual(result.config, {
 	    'domain': '1.moray.emy-10.joyent.us'
 	});
@@ -86,7 +86,7 @@ mod_tape.test('parseIpOrDomain: hostname', function (t) {
 	result = mod_resolver.parseIpOrDomain('myservice');
 	t.ok(!(result instanceof Error));
 	t.equal(result.kind, 'dns');
-	t.equal(result.cons.name, 'CueBallResolver');
+	t.equal(result.cons.name, 'CueBallDNSResolver');
 	t.deepEqual(result.config, {
 	    'domain': 'myservice'
 	});
@@ -94,7 +94,7 @@ mod_tape.test('parseIpOrDomain: hostname', function (t) {
 	result = mod_resolver.parseIpOrDomain('myservice:1234');
 	t.ok(!(result instanceof Error));
 	t.equal(result.kind, 'dns');
-	t.equal(result.cons.name, 'CueBallResolver');
+	t.equal(result.cons.name, 'CueBallDNSResolver');
 	t.deepEqual(result.config, {
 	    'domain': 'myservice',
 	    'defaultPort': 1234
@@ -185,7 +185,8 @@ mod_tape.test('resolverForIpOrDomain: static IP', function (t) {
 	    'input': '127.0.0.1:2020'
 	});
 	t.ok(!(result instanceof Error));
-	t.ok(result instanceof mod_resolver.StaticIpResolver);
+	t.ok(result instanceof mod_resolver.ResolverFSM);
+	t.ok(result.r_fsm instanceof mod_resolver.StaticIpResolver);
 	list = result.list();
 	t.equal(1, Object.keys(list).length);
 	t.deepEqual(list[Object.keys(list)[0]], {
@@ -220,7 +221,8 @@ mod_tape.test('resolverForIpOrDomain: hostname', function (t) {
 	    }
 	});
 	t.ok(!(result instanceof Error));
-	t.ok(result instanceof mod_resolver.Resolver);
+	t.ok(result instanceof mod_resolver.ResolverFSM);
+	t.ok(result.r_fsm instanceof mod_resolver.DNSResolver);
 
 	result = mod_resolver.resolverForIpOrDomain({
 	    'input': '1.moray.emy-10.joyent.us:70000'
