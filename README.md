@@ -75,6 +75,8 @@ Parameters
   - `log` -- optional Object, a `bunyan`-style logger to use
   - `spares` -- optional Number, number of spares wanted in the pool per host
   - `maximum` -- optional Number, maximum number of connections per host
+  - `tcpKeepAliveInitialDelay` -- optional Number, if supplied, enable TCP
+    level keep-alives with the given initial delay (in milliseconds)
   - `ping` -- optional String, URL path to use for health checking. Connection
     is considered still viable if this URL returns a non-5xx response code.
   - `pingInterval` -- optional Number, interval between health check pings
@@ -125,6 +127,43 @@ Otherwise, if want to use the default DNS-based resolver, do not specify the
 `resolver` property.  A resolver instance will be created based on the other
 configuration properties.
 
+### Pool states
+
+ConnectionPool exposes the `mooremachine` FSM interface, with the following
+state graph:
+
+                                                           | (from failed)
+                                                .stop()    v
+             +--------+   connect ok   +-------+       +--------+
+    init --> |starting| +------------> |running| +---> |stopping|
+             +--------+                +-------+       +--------+
+                 +                      ^     +            +
+        resolver |                      |     |            |
+          failed |                      |     |            |
+              OR |       +------+       |     |            v
+         retries +---->  |failed| +-----+     |        +-------+
+       exhausted         +------+ connect ok  |        |stopped|
+                          +  ^                |        +-------+
+                          |  |                |
+                   .stop()|  +----------------+
+                          |   all retries exhausted
+
+Pools begin their life in the "starting" state. Once they have successfully made
+one connection to any backend, they proceed to the "running" state. Otherwise,
+if their underlying Resolver enters the "failed" state, or they exhaust their
+retry policy attempting to connect to all their backends, they enter the
+"failed" state.
+
+A "running" pool can then either be stopped by calling the `.stop()` method, at
+which point it enters the "stopping" state and begins tearing down its
+connections; or all of its connections become disconnected and it exhausts its
+retry policy, in which case it enters the "failed" state.
+
+Failed pools can re-enter the "running" state at any time if they make a
+successful connection to a backend and their underlying Resolver is no longer
+"failed". A "failed" pool can also have the `.stop()` method called, in which
+case it proceeds much as from "running".
+
 ### `ConnectionPool#stop()`
 
 Stops the connection pool and its `Resolver`, then destroys all connections.
@@ -148,19 +187,23 @@ Parameters
   - `connection` -- Object, the actual connection (as returned by the
     `constructor` given to `new ConnectionPool()`)
 
-Returns either `undefined` (if the callback was called immediately), or a
-"waiter handle", which is an Object having a `cancel()` method. The `cancel()`
-method may be called at any time up to when the `callback` is run, to cancel
-the request to the pool and relinquish any queue positions held.
+Returns a "waiter handle", which is an Object having a `cancel()` method. The
+`cancel()` method may be called at any time up to when the `callback` is run, to
+cancel the request to the pool and relinquish any queue positions held.
 
 When a client is done with a connection, they must call `handle.release()` to
 return it to the pool. All event handlers should be disconnected from the
 `connection` prior to calling `release()`.
 
+Calling `claim()` on a Pool that is in the "stopping", "stopped" or "failed"
+states will result in the callback being called with an error on the next run of
+the event loop.
+
 ### `ConnectionPool#claimSync()`
 
 Claims a connection from the pool, only if an idle one is immediately
-available. Otherwise, throws an Error.
+available. Otherwise, throws an Error. Always throws an Error if called on a
+Pool that is "stopping", "stopped" or "failed".
 
 Returns an Object with keys:
  - `handle` -- Object, handle to be used to release the connection
