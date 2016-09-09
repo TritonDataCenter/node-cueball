@@ -232,11 +232,11 @@ mod_tape.test('spares are evenly balanced', function (t) {
 	resolver.emit('added', 'b1', {});
 	resolver.emit('added', 'b2', {});
 	setImmediate(function () {
+		connections.forEach(function (c) { c.connect(); });
+
 		t.equal(connections.length, 4);
 		var bs = connections.map(function (c) { return (c.backend); });
 		t.deepEqual(bs.sort(), ['b1', 'b1', 'b2', 'b2']);
-
-		connections.forEach(function (c) { c.connect(); });
 
 		resolver.emit('added', 'b3', {});
 		resolver.emit('added', 'b4', {});
