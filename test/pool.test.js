@@ -96,7 +96,7 @@ mod_tape.test('empty pool', function (t) {
 	t.strictEqual(connections.length, 0);
 
 	t.throws(function () {
-		pool.claimSync();
+		pool.claim({errorOnEmpty: true}, function (err) { });
 	});
 
 	pool.claim({timeout: 100}, function (err) {
@@ -106,7 +106,7 @@ mod_tape.test('empty pool', function (t) {
 	});
 });
 
-mod_tape.test('pool with one backend, claimSync', function (t) {
+mod_tape.test('pool with one backend', function (t) {
 	connections = [];
 	resolver = undefined;
 
@@ -114,7 +114,7 @@ mod_tape.test('pool with one backend, claimSync', function (t) {
 		log: log,
 		domain: 'foobar',
 		spares: 2,
-		maximum: 3,
+		maximum: 2,
 		constructor: function (backend) {
 			return (new DummyConnection(backend));
 		},
@@ -129,35 +129,46 @@ mod_tape.test('pool with one backend, claimSync', function (t) {
 		t.strictEqual(connections[1].backend, 'b1');
 
 		/* The connections haven't emitted connect() yet. */
-		t.throws(function () {
-			pool.claimSync();
-		});
-		connections.forEach(function (c) {
-			t.strictEqual(c.refd, true);
-		});
+		pool.claim({timeout: 0}, function (err) {
+			t.ok(err);
+			t.ok(err.message.match(/timed out/i));
 
-		connections[0].connect();
-		connections[1].connect();
+			connections.forEach(function (c) {
+				t.strictEqual(c.refd, true);
+				c.connect();
+				t.strictEqual(c.refd, false);
+			});
 
-		connections.forEach(function (c) {
-			t.strictEqual(c.refd, false);
-		});
-
-		var ret = pool.claimSync();
-		t.ok(typeof (ret) === 'object');
-		t.ok(ret.handle);
-		t.strictEqual(ret.connection, connections[0]);
-		t.strictEqual(connections[0].refd, true);
-
-		var ret2 = pool.claimSync();
-		t.ok(typeof (ret2) === 'object');
-		t.strictEqual(ret2.connection, connections[1]);
-
-		t.throws(function () {
-			pool.claimSync();
+			setImmediate(claimAgain);
 		});
 
-		t.end();
+		function claimAgain() {
+			pool.claim({timeout: 0}, function (err, hdl, conn) {
+				t.error(err);
+				t.ok(hdl);
+				t.notStrictEqual(connections.indexOf(conn), -1);
+				t.strictEqual(conn.refd, true);
+
+				claimOnceMore();
+			});
+		}
+
+		function claimOnceMore() {
+			pool.claim({timeout: 0}, function (err, hdl, conn) {
+				t.error(err);
+				t.ok(hdl);
+				t.notStrictEqual(connections.indexOf(conn), -1);
+				claimEmpty();
+			});
+		}
+
+		function claimEmpty() {
+			pool.claim({timeout: 0}, function (err) {
+				t.ok(err);
+				t.ok(err.message.match(/timed out/i));
+				t.end();
+			});
+		}
 	});
 });
 

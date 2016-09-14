@@ -98,12 +98,14 @@ mod_tape.test('static resolver: no backends', function (t) {
 
 	nadded = 0;
 	resolver.on('added', function () { nadded++; });
-	resolver.onState('running', function () {
-		t.equal(nadded, 0);
-		t.deepEqual(resolver.list(), {});
-		t.equal(resolver.count(), 0);
-		resolver.stop();
-		t.end();
+	resolver.on('stateChanged', function (st) {
+		if (st === 'running') {
+			t.equal(nadded, 0);
+			t.deepEqual(resolver.list(), {});
+			t.equal(resolver.count(), 0);
+			resolver.stop();
+			t.end();
+		}
 	});
 });
 
@@ -127,33 +129,38 @@ mod_tape.test('static resolver: several backends', function (t) {
 
 	found = [];
 	resolver.on('added', function (key, backend) { found.push(backend); });
-	resolver.onState('running', function () {
-		var expected;
+	resolver.on('stateChanged', function (st) {
+		if (st === 'running') {
+			var expected;
 
-		t.equal(resolver.count(), 3);
-		t.deepEqual(found, [ {
-		    'name': '10.0.0.3:2021',
-		    'address': '10.0.0.3',
-		    'port': 2021
-		}, {
-		    'name': '10.0.0.3:2020',
-		    'address': '10.0.0.3',
-		    'port': 2020
-		}, {
-		    'name': '10.0.0.7:2020',
-		    'address': '10.0.0.7',
-		    'port': 2020
-		} ]);
+			t.equal(resolver.count(), 3);
+			t.deepEqual(found, [ {
+			    'name': '10.0.0.3:2021',
+			    'address': '10.0.0.3',
+			    'port': 2021
+			}, {
+			    'name': '10.0.0.3:2020',
+			    'address': '10.0.0.3',
+			    'port': 2020
+			}, {
+			    'name': '10.0.0.7:2020',
+			    'address': '10.0.0.7',
+			    'port': 2020
+			} ]);
 
-		expected = {};
-		found.forEach(function (be) { expected[be['name']] = true; });
-		mod_jsprim.forEachKey(resolver.list(), function (k, reported) {
-			t.ok(expected.hasOwnProperty(reported['name']));
-			delete (expected[reported['name']]);
-		});
+			expected = {};
+			found.forEach(function (be) {
+				expected[be['name']] = true;
+			});
+			mod_jsprim.forEachKey(resolver.list(),
+			    function (k, reported) {
+				t.ok(expected.hasOwnProperty(reported['name']));
+				delete (expected[reported['name']]);
+			});
 
-		t.equal(Object.keys(expected).length, 0);
-		resolver.stop();
-		t.end();
+			t.equal(Object.keys(expected).length, 0);
+			resolver.stop();
+			t.end();
+		}
 	});
 });

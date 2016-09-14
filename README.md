@@ -195,6 +195,11 @@ When a client is done with a connection, they must call `handle.release()` to
 return it to the pool. All event handlers should be disconnected from the
 `connection` prior to calling `release()`.
 
+If a client determines that a connection must be closed immediately (e.g. due
+to a protocol error making it impossible to continue using it safely), it must
+call the `.close()` method on the *handle*, not any `.destroy()` or similar
+method on the connection itself.
+
 Calling `claim()` on a Pool that is in the "stopping", "stopped" or "failed"
 states will result in the callback being called with an error on the next run of
 the event loop.
@@ -616,6 +621,70 @@ the records from the previous lookup as the list of nameservers to query in
 order to find out what the new records should be. Then, we will use any new
 nameservers we find for the next `napi.coal.joyent.us` lookup as well.
 
+ConnectionSet
+-------------
+
+Cueball also includes an alternative to the ConnectionPool, named ConnectionSet.
+This is a more low-level API which is useful for implementing clients for
+protocols that are not as strictly connection-oriented.
+
+Key differences to ConnectionPool:
+ - Each backend in a ConnectionSet has a maximum of 1 connection open to it
+   (it's expected to be used with protocols that multiplex operations over a
+   single socket.)
+ - No support for leases (claim/release). ConnectionSet does not track whether
+   connections are busy or not, and expects its consumer to manage this.
+
+ConnectionSets have an identical state graph to ConnectionPools.
+
+### `new mod_cueball.ConnectionSet(options)`
+
+Parameters
+ - `options` -- Object, with keys:
+   - `resolver` -- Object, an instance of the Resolver interface
+   - `constructor` -- Function, same as in ConnectionPool
+   - `recovery` -- Object, a recovery spec (see below)
+   - `log` -- optional Object, a `bunyan`-style logger to use
+   - `target` -- optional Number, target number of connections to be made
+                 available in the entire set
+   - `maximum` -- optional Number, maximum number of connections per host
+
+### Event `'added'`
+
+Emitted when a new connection becomes available in the set. This event *must*
+have a handler on it at all times.
+
+Parameters
+ - `key` -- String, a unique key to identify this connection
+ - `connection` -- Object, the connection as returned by the constructor
+
+### Event `removed`
+
+Emitted when an existing connection should be removed from the pool. This event
+*must* have a handler on it at all times. The handler is obligated to take all
+necessary actions to drain the connection of outstanding requests and then close
+it. The emission of this event must cause the connection object to emit
+`'close'` as soon as possible.
+
+Parameters
+ - `key` -- String, a unique key to identify the connection
+
+### `ConnectionSet#stop()`
+
+Stops the ConnectionSet, disconnecting all available connections (by first
+emitting `'removed'` for them.)
+
+### `ConnectionSet#setTarget(target)`
+
+Sets the target number of connections in the ConnectionSet. Will trigger an
+async operation to add or remove connections in order to meet the new target.
+
+Parameters:
+ - `target` -- Number
+
+### `ConnectionSet#getConnections()`
+
+Returns all the currently open connections in the Set, as an Array.
 
 Tools
 -----
