@@ -412,6 +412,74 @@ name `mydomain.example.com`:
 In these examples, the `input` string is assumed to come from a user
 cueball does the expected thing when given an IP address or DNS name.
 
+## Connection interface
+
+Objects returned by a `constructor` function (such as supplied to the
+`ConnectionPool` constructor) must obey a subset of the node.js socket
+interface. In particular they must support the following events and methods:
+
+### `constructor(backend)`
+
+Parameters:
+ - `backend` -- an Object, with properties:
+   - `key` -- a String, the backend key as supplied via the Resolver interface.
+              Can be used to uniquely identify the backend.
+   - `address` -- a String, address of the backend (IPv4 or IPv6)
+   - `port` -- a Number, TCP or UDP port number
+
+Returns an object obeying the Connection interface.
+
+### Event `connect` (required)
+
+At construction, the connection object must immediately attempt to make a
+connection to the backend specified by the first argument to the constructor.
+When the connection succeeds, it must emit the event `connect`. No arguments are
+required.
+
+### Event `error`
+
+Connection objects may emit `error` at any time in response to a fatal error.
+The connection will be immediately terminated (by calling `.destroy()`) upon the
+emission of any `error` event.
+
+The `error` event should be emitted with an Object as the first parameter. This
+is expected to have `Error` on its prototype chain (`obj instanceof Error`
+should be `true`).
+
+May also be emitted as `connectError` only in the state before `connect` has
+been emitted.
+
+### Event `close` (required)
+
+Connection objects must emit `close` as the final event they emit after the
+connection has ended. No events may be emitted after `close`.
+
+### `#ref()` (required)
+
+Marks the connection as "referenced", meaning that it should keep the Node
+process running even if no event handlers are registered on it.
+
+It is generally acceptable for long-lived server processes (which never intend
+to exit in normal operation) to provide a Connection that implements `ref()` and
+`unref()` as no-ops.
+
+### `#unref()` (required)
+
+Marks the connection as "unreferenced", allowing the Node process to exit if it
+is the only remaining source of events.
+
+### `#destroy()` (required)
+
+Immediately disconnects the connection and proceeds to emit `close`.
+
+### Event `timeout`
+
+Optional. Equivalent to emitting `error` with a ConnectionTimeoutError as an
+argument.
+
+May also be emitted as `connectTimeout` only in the state before `connect` has
+been emitted.
+
 ## Errors
 
 ### `ClaimTimeoutError`
