@@ -263,3 +263,23 @@ mod_tape.test('rebalance: dead, backend starvation', function (t) {
 	t.deepEqual(plan.add, ['b2', 'b2', 'b2']);
 	t.end();
 });
+
+mod_tape.test('bug #30', function (t) {
+	var spares = {
+		'16uN6JsJFild9cHyl2+LSyRHmNc=': ['c1'],
+		'c7QG0UOYCpm6m/hYUX0jBenbM70=': ['c2'],
+		'ashWtupYHh1QH33UP/T2+6hvi8c=': [],
+		'4QMg6SChOmtF8s6lfK32lLoKUFs=': []
+	};
+	var dead = {
+		'c7QG0UOYCpm6m/hYUX0jBenbM70=': true,
+		'16uN6JsJFild9cHyl2+LSyRHmNc=': true,
+		'4QMg6SChOmtF8s6lfK32lLoKUFs=': true,
+		'ashWtupYHh1QH33UP/T2+6hvi8c=': true
+	};
+	var plan = mod_utils.planRebalance(spares, dead, 3, 4);
+	t.deepEqual(plan.remove, []);
+	t.deepEqual(plan.add, [
+	    'ashWtupYHh1QH33UP/T2+6hvi8c=', '4QMg6SChOmtF8s6lfK32lLoKUFs=']);
+	t.end();
+});
