@@ -208,8 +208,13 @@ function main()
 	cbrResolver.on('removed', cbrPrintRemoved);
 
 	if (!cbrFollow) {
-		cbrResolver.onState('running', cbrRunning);
-		cbrResolver.onState('failed', cbrFailed);
+		cbrResolver.on('stateChanged', function (st) {
+			if (st === 'running') {
+				cbrRunning();
+			} else if (st === 'failed') {
+				cbrFailed();
+			}
+		});
 		process.on('exit', function (code) {
 			if (code === 0) {
 				mod_assert.ok(cbrDone, 'premature exit');
