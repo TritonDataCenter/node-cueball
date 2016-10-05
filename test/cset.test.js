@@ -23,8 +23,23 @@ var log = mod_bunyan.createLogger({
 	level: process.env.LOGLEVEL || 'debug'
 });
 var recovery = {
-	default: {timeout: 1000, retries: 3, delay: 100 }
+	default: {timeout: 1000, retries: 2, delay: 100 }
 };
+
+var index, counts;
+
+function summarize() {
+	index = {};
+	counts = {};
+	connections.forEach(function (c) {
+		if (index[c.backend] === undefined) {
+			index[c.backend] = [];
+			counts[c.backend] = 0;
+		}
+		index[c.backend].push(c);
+		++counts[c.backend];
+	});
+}
 
 function DummyResolver() {
 	resolver = this;
@@ -63,11 +78,14 @@ DummyConnection.prototype.ref = function () {
 	this.refd = true;
 };
 DummyConnection.prototype.destroy = function () {
+	if (this.dead)
+		return;
 	var idx = connections.indexOf(this);
 	mod_assert.ok(idx !== -1);
 	connections.splice(idx, 1);
 	this.connected = false;
 	this.dead = true;
+	this.emit('close');
 };
 
 mod_tape.test('cset with one backend', function (t) {
@@ -106,7 +124,8 @@ mod_tape.test('cset with one backend', function (t) {
 
 	cset.on('removed', function (key, conn) {
 		if (!cset.isInState('stopping'))
-			t.fail();
+			t.fail('removed ' + key);
+		conn.destroy();
 	});
 
 	resolver.start();
@@ -160,6 +179,138 @@ mod_tape.test('cset with two backends', function (t) {
 	cset.on('removed', function (key, conn) {
 		if (!cset.isInState('stopping'))
 			t.fail();
+		conn.destroy();
+	});
+
+	resolver.start();
+	t.strictEqual(connections.length, 0);
+
+	resolver.emit('added', 'b1', {});
+	resolver.emit('added', 'b2', {});
+
+	setImmediate(function () {
+		connections.forEach(function (c) { c.connect(); });
+	});
+});
+
+mod_tape.test('removing a backend', function (t) {
+	connections = [];
+	resolver = new DummyResolver();
+
+	var cset = new mod_cset.ConnectionSet({
+		log: log,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery,
+		target: 3,
+		maximum: 5,
+		resolver: resolver
+	});
+
+	cset.on('stateChanged', function (st) {
+		if (st === 'stopped')
+			t.end();
+	});
+
+	cset.on('added', function (key, conn) {
+	});
+
+	cset.on('removed', function (key, conn) {
+		conn.seen = true;
+		conn.destroy();
+	});
+
+	resolver.emit('added', 'b1', {});
+	resolver.emit('added', 'b2', {});
+	resolver.emit('added', 'b3', {});
+
+	setImmediate(function () {
+		t.equal(connections.length, 3);
+		summarize();
+		t.deepEqual(counts, { 'b1': 1, 'b2': 1, 'b3': 1 });
+		index.b1[0].connect();
+		index.b2[0].connect();
+
+		setTimeout(function () {
+			t.equal(connections.length, 3);
+			summarize();
+			t.deepEqual(counts, { 'b1': 1, 'b2': 1, 'b3': 1 });
+
+			var conn = index.b2[0];
+			var conn2 = index.b3[0];
+
+			resolver.emit('removed', 'b2');
+			resolver.emit('removed', 'b3');
+
+			setTimeout(function () {
+				t.ok(conn.dead);
+				t.ok(conn2.dead);
+				t.ok(conn.seen);
+				t.ok(!conn2.seen);
+				t.equal(connections.length, 1);
+				summarize();
+				t.deepEqual(counts, { 'b1': 1 });
+				cset.stop();
+				resolver.stop();
+			}, 500);
+		}, 500);
+	});
+});
+
+mod_tape.test('cset with error', function (t) {
+	connections = [];
+	resolver = new DummyResolver();
+
+	recovery.default.retries = 1;
+	var cset = new mod_cset.ConnectionSet({
+		log: log,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery,
+		target: 2,
+		maximum: 4,
+		resolver: resolver
+	});
+
+	cset.on('stateChanged', function (st) {
+		if (st === 'stopped') {
+			t.ok(errorKey === undefined);
+			t.end();
+		}
+	});
+
+	var errorKey;
+	cset.on('added', function (key, conn) {
+		t.notStrictEqual(connections.indexOf(conn), -1);
+		t.strictEqual(conn.refd, true);
+		if (connections.length > 2) {
+			t.fail('more than 2 connections');
+		}
+		if (connections.length === 2) {
+			var backends = connections.map(function (c) {
+				return (c.backend);
+			}).sort();
+			t.deepEqual(backends, ['b1', 'b2']);
+
+			errorKey = key;
+			conn.emit('error', new Error());
+		}
+	});
+
+	cset.on('removed', function (key, conn) {
+		conn.destroy();
+		if (key === errorKey) {
+			errorKey = undefined;
+			t.ok(conn.dead);
+
+			cset.stop();
+			resolver.stop();
+			return;
+		}
+		if (!cset.isInState('stopping'))
+			t.fail('removed connection ' + key + ' unexpectedly');
 	});
 
 	resolver.start();

@@ -18,14 +18,28 @@ const mod_resolver = require('../lib/resolver');
 
 var sandbox;
 var connections = [];
+var index, counts;
 var resolver;
 var log = mod_bunyan.createLogger({
 	name: 'pool-test',
 	level: process.env.LOGLEVEL || 'debug'
 });
 var recovery = {
-	default: {timeout: 1000, retries: 3, delay: 100 }
+	default: {timeout: 1000, retries: 1, delay: 50 }
 };
+
+function summarize() {
+	index = {};
+	counts = {};
+	connections.forEach(function (c) {
+		if (index[c.backend] === undefined) {
+			index[c.backend] = [];
+			counts[c.backend] = 0;
+		}
+		index[c.backend].push(c);
+		++counts[c.backend];
+	});
+}
 
 function DummyResolver() {
 	resolver = this;
@@ -302,6 +316,68 @@ mod_tape.test('error while claimed', function (t) {
 				t.end();
 			}, 500);
 		});
+	});
+});
+
+mod_tape.test('removing a backend', function (t) {
+	connections = [];
+	resolver = undefined;
+
+	var pool = new mod_pool.ConnectionPool({
+		log: log,
+		domain: 'foobar',
+		spares: 2,
+		maximum: 3,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery
+	});
+	t.ok(resolver);
+
+	pool.on('stateChanged', function (st) {
+		if (st === 'stopped') {
+			t.end();
+		}
+	});
+
+	resolver.emit('added', 'b1', {});
+	resolver.emit('added', 'b2', {});
+
+	setImmediate(function () {
+		t.equal(connections.length, 2);
+		summarize();
+		t.deepEqual(counts, { 'b1': 1, 'b2': 1 });
+		index.b1[0].connect();
+
+		/* Get it to be declared dead. */
+		index.b2[0].emit('error', new Error());
+
+		setTimeout(function () {
+			t.equal(Object.keys(pool.p_dead).length, 1);
+
+			/*
+			 * The backed-off monitor FSM should be there now, in
+			 * addition to the extra one on b1.
+			 */
+			t.equal(connections.length, 3);
+			summarize();
+			t.deepEqual(counts, { 'b1': 2, 'b2': 1 });
+
+			index.b1[1].connect();
+			var conn = index.b2[0];
+
+			resolver.emit('removed', 'b2');
+
+			setTimeout(function () {
+				t.ok(conn.dead);
+				t.equal(connections.length, 2);
+				summarize();
+				t.deepEqual(counts, { 'b1': 2 });
+
+				pool.stop();
+			}, 500);
+		}, 500);
 	});
 });
 
