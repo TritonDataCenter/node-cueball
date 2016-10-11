@@ -75,6 +75,8 @@ Parameters
   - `log` -- optional Object, a `bunyan`-style logger to use
   - `spares` -- optional Number, number of spares wanted in the pool per host
   - `maximum` -- optional Number, maximum number of connections per host
+  - `initialDomains` -- optional Array of String, initial domains to create
+    connections to at startup (to pre-seed the Agent for quick user later)
   - `tcpKeepAliveInitialDelay` -- optional Number, if supplied, enable TCP
     level keep-alives with the given initial delay (in milliseconds)
   - `ping` -- optional String, URL path to use for health checking. Connection
