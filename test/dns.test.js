@@ -128,6 +128,9 @@ DummyDnsClient.prototype.lookup = function (options, cb) {
 				rdata: { target: '1234:abcd::1' }
 			});
 			reply.header.anCount++;
+		} else if (parts[1] === 'a' || parts[1] === 'aaaa') {
+			reply.header.flags.rcode = mod_proto.rCodes.NOERROR;
+			/* send a NODATA response. */
 		}
 		break;
 	case 'notfound':
@@ -216,14 +219,10 @@ mod_tape.test('SRV lookup', function (t) {
 			});
 			t.deepEqual(history, [
 				'_foo._tcp.srv.ok/SRV',
-				'a.ok/AAAA',
-				'a.ok/AAAA',
-				'a.ok/AAAA', /* 3 retries, not found */
+				'a.ok/AAAA', /* 1 try, got NODATA */
 				'aaaa.ok/AAAA',
 				'a.ok/A',
-				'aaaa.ok/A',
-				'aaaa.ok/A',
-				'aaaa.ok/A'  /* 3 retries */
+				'aaaa.ok/A'  /* 1 try, got NODATA */
 			]);
 
 			nsclients[0].history = [];
@@ -263,9 +262,7 @@ mod_tape.test('plain A lookup', function (t) {
 			});
 			t.deepEqual(history, [
 				'_foo._tcp.a.ok/SRV', /* no retries, SRV */
-				'a.ok/AAAA',
-				'a.ok/AAAA',
-				'a.ok/AAAA', /* 3 retries, not found */
+				'a.ok/AAAA', /* 1 try, got NODATA */
 				'a.ok/A'
 			]);
 
