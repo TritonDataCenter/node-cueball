@@ -17,6 +17,7 @@ const mod_resolver = require('../lib/resolver');
 const mod_nsc = require('mname-client');
 const mod_mname = require('mname');
 const mod_proto = mod_mname.Protocol;
+const mod_os = require('os');
 
 var sandbox;
 var nsclients = [];
@@ -24,6 +25,27 @@ var nsclients = [];
 var recovery = {
 	default: {timeout: 1000, retries: 3, delay: 100 }
 };
+
+var INT_NO_V6 = {
+	'lo0': [
+		{ address: '::1', family: 'IPv6' }
+	],
+	'foo0': [
+		{ address: '1.2.3.4', family: 'IPv4' }
+	]
+};
+
+var INT_V6 = {
+	'lo0': [
+		{ address: '::1', family: 'IPv6' }
+	],
+	'foo0': [
+		{ address: '1.2.3.4', family: 'IPv4' },
+		{ address: 'fe80::1:2:3:4', family: 'IPv6' }
+	]
+};
+
+var interfaces = INT_V6;
 
 function emptyPacket() {
 	return ({
@@ -186,6 +208,9 @@ DummyDnsClient.prototype.lookup = function (options, cb) {
 mod_tape.test('setup sandbox', function (t) {
 	sandbox = mod_sinon.sandbox.create();
 	sandbox.stub(mod_nsc, 'DnsClient', DummyDnsClient);
+	sandbox.stub(mod_os, 'networkInterfaces', function () {
+		return (interfaces);
+	});
 	t.end();
 });
 
@@ -406,6 +431,51 @@ mod_tape.test('short TTL', function (t) {
 				res.stop();
 				t.end();
 			}, 1500);
+		}
+	});
+	res.start();
+});
+
+mod_tape.test('short-cut on non-ipv6', function (t) {
+	interfaces = INT_NO_V6;
+	mod_resolver.DNSResolver._nicCacheUpdated = undefined;
+	var res = new mod_resolver.DNSResolver({
+		domain: 'srv.ok',
+		service: '_foo._tcp',
+		defaultPort: 112,
+		resolvers: ['1.2.3.4'],
+		recovery: recovery
+	});
+	var backends = [];
+	res.on('added', function (key, backend) {
+		backends.push(backend);
+	});
+	res.on('stateChanged', function (st) {
+		if (st === 'failed') {
+			t.fail();
+			res.stop();
+			t.end();
+		} else if (st === 'running') {
+			t.equal(backends.length, 1);
+			t.strictEqual(backends[0].address, '1.2.3.4');
+			t.strictEqual(backends[0].port, 111);
+
+			t.equal(nsclients.length, 1);
+			var history = nsclients[0].history.map(function (f) {
+				return (f.domain + '/' + f.type);
+			});
+			t.deepEqual(history, [
+				'_foo._tcp.srv.ok/SRV',
+				'a.ok/A',
+				'aaaa.ok/A',
+				'a.ok/A'
+			]);
+
+			nsclients[0].history = [];
+
+			res.stop();
+			interfaces = INT_V6;
+			t.end();
 		}
 	});
 	res.start();
