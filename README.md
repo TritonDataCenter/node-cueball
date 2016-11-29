@@ -649,7 +649,9 @@ Parameters
    - `log` -- optional Object, a `bunyan`-style logger to use
    - `target` -- optional Number, target number of connections to be made
                  available in the entire set
-   - `maximum` -- optional Number, maximum number of connections per host
+   - `maximum` -- optional Number, maximum number of sockets opened by the set.
+                  Note that this number may temporarily be exceeded by 1 socket
+                  to allow the set to re-balance.
 
 ### Event `'added'`
 

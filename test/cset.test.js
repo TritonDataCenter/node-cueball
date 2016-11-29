@@ -193,6 +193,87 @@ mod_tape.test('cset with two backends', function (t) {
 	});
 });
 
+mod_tape.test('cset swapping', function (t) {
+	connections = [];
+	var inset = [];
+	resolver = new DummyResolver();
+
+	var cset = new mod_cset.ConnectionSet({
+		log: log,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery,
+		target: 1,
+		maximum: 1,
+		resolver: resolver
+	});
+
+	cset.on('stateChanged', function (st) {
+		if (st === 'stopped')
+			t.end();
+	});
+
+	cset.on('added', function (key, conn) {
+		inset.push(conn);
+	});
+
+	cset.on('removed', function (key, conn) {
+		t.ok(!conn.dead);
+		conn.seen = true;
+		conn.destroy();
+		var idx = inset.indexOf(conn);
+		if (idx !== -1)
+			inset.splice(idx, 1);
+	});
+
+	resolver.emit('added', 'b1', {});
+
+	setImmediate(function () {
+		t.equal(connections.length, 1);
+		summarize();
+		t.deepEqual(counts, { 'b1': 1 });
+		index.b1[0].connect();
+
+		setTimeout(function () {
+			t.equal(connections.length, 1);
+			summarize();
+			t.deepEqual(counts, { 'b1': 1 });
+			t.equal(inset.length, 1);
+
+			var conn = index.b1[0];
+
+			resolver.emit('added', 'b0', {});
+			cset.cs_keys.sort();
+			t.strictEqual(cset.cs_keys[0], 'b0');
+
+			t.ok(!conn.dead);
+			t.ok(!conn.seen);
+
+			setTimeout(function () {
+				t.equal(connections.length, 2);
+				t.equal(inset.length, 1);
+				summarize();
+				t.deepEqual(counts, { 'b1': 1, 'b0': 1 });
+				t.ok(!conn.dead);
+				t.ok(!conn.seen);
+				index.b0[0].connect();
+
+				setTimeout(function () {
+					t.equal(connections.length, 1);
+					t.equal(inset.length, 1);
+					t.strictEqual(inset[0], index.b0[0]);
+					summarize();
+					t.deepEqual(counts, { 'b0': 1 });
+					t.ok(conn.dead);
+					cset.stop();
+					resolver.stop();
+				}, 1000);
+			}, 500);
+		}, 500);
+	});
+});
+
 mod_tape.test('removing a backend', function (t) {
 	connections = [];
 	resolver = new DummyResolver();
