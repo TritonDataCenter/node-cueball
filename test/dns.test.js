@@ -467,8 +467,7 @@ mod_tape.test('short-cut on non-ipv6', function (t) {
 			t.deepEqual(history, [
 				'_foo._tcp.srv.ok/SRV',
 				'a.ok/A',
-				'aaaa.ok/A',
-				'a.ok/A'
+				'aaaa.ok/A'
 			]);
 
 			nsclients[0].history = [];
