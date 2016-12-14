@@ -84,6 +84,19 @@ Parameters
   - `pingInterval` -- optional Number, interval between health check pings
   - `errorOnEmpty` -- optional Boolean
 
+### HttpAgent#stop([cb])
+
+Stops the pools managed by this agent, calling `cb` (if given) once all have
+stopped.
+
+Once an Agent has been stopped, it can no longer accept any new requests, and
+will throw an Error if asked to do so. Calling `stop()` more than once is
+also an error and will throw.
+
+Parameters
+
+- `cb` -- optional Function (err)
+
 ## Pool
 
 ### `new mod_cueball.ConnectionPool(options)`
