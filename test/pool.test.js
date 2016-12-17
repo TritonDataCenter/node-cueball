@@ -381,6 +381,142 @@ mod_tape.test('removing a backend', function (t) {
 	});
 });
 
+mod_tape.test('pool failure', function (t) {
+	connections = [];
+	resolver = undefined;
+
+	recovery.default.retries = 2;
+	var pool = new mod_pool.ConnectionPool({
+		log: log,
+		domain: 'foobar',
+		spares: 2,
+		maximum: 2,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery
+	});
+	t.ok(resolver);
+
+	pool.on('stateChanged', function (st) {
+		if (st === 'stopped') {
+			t.end();
+		}
+	});
+
+	resolver.emit('added', 'b1', {});
+	setImmediate(function () {
+		t.equal(connections.length, 2);
+		summarize();
+		t.deepEqual(counts, { 'b1': 2 });
+
+		index.b1[0].connect();
+		index.b1[0].emit('error', new Error());
+		index.b1[1].connect();
+		index.b1[1].emit('error', new Error());
+
+		setTimeout(function () {
+			t.ok(pool.isInState('running'));
+
+			t.equal(connections.length, 2);
+			summarize();
+			index.b1[1].connect();
+			index.b1[1].emit('error', new Error());
+			index.b1[0].connect();
+
+			setTimeout(function () {
+				t.ok(pool.isInState('running'));
+
+				t.equal(connections.length, 2);
+				summarize();
+				index.b1[0].emit('error', new Error());
+				index.b1[1].emit('error', new Error());
+
+				setTimeout(function () {
+					t.ok(pool.isInState('failed'));
+
+					t.equal(connections.length, 1);
+					summarize();
+					t.deepEqual(counts, { 'b1': 1 });
+
+					index.b1[0].connect();
+
+					setImmediate(function () {
+						t.ok(pool.isInState('running'));
+						pool.stop();
+					});
+				}, 100);
+			}, 100);
+		}, 100);
+	});
+});
+
+mod_tape.test('pool failure / retry race', function (t) {
+	connections = [];
+	resolver = undefined;
+
+	recovery.default.retries = 2;
+	var pool = new mod_pool.ConnectionPool({
+		log: log,
+		domain: 'foobar',
+		spares: 2,
+		maximum: 2,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery
+	});
+	t.ok(resolver);
+
+	pool.on('stateChanged', function (st) {
+		if (st === 'stopped') {
+			t.end();
+		}
+	});
+
+	resolver.emit('added', 'b1', {});
+	setImmediate(function () {
+		t.equal(connections.length, 2);
+		summarize();
+		t.deepEqual(counts, { 'b1': 2 });
+
+		index.b1[0].connect();
+		index.b1[0].emit('error', new Error());
+		index.b1[1].connect();
+		index.b1[1].emit('error', new Error());
+
+		setTimeout(function () {
+			t.ok(pool.isInState('running'));
+
+			t.equal(connections.length, 2);
+			summarize();
+			index.b1[1].connect();
+			index.b1[1].emit('error', new Error());
+			index.b1[0].connect();
+			index.b1[0].emit('error', new Error());
+
+			setTimeout(function () {
+				t.ok(pool.isInState('running'));
+
+				t.equal(connections.length, 2);
+				summarize();
+				index.b1[1].emit('error', new Error());
+				index.b1[0].connect();
+
+				setTimeout(function () {
+					t.ok(pool.isInState('running'));
+
+					t.equal(connections.length, 2);
+					summarize();
+					t.deepEqual(counts, { 'b1': 2 });
+
+					pool.stop();
+				}, 100);
+			}, 100);
+		}, 100);
+	});
+});
+
 mod_tape.test('cleanup sandbox', function (t) {
 	sandbox.restore();
 	t.end();
