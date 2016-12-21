@@ -26,6 +26,11 @@ var recovery = {
 	default: {timeout: 1000, retries: 3, delay: 100 }
 };
 
+var log = mod_bunyan.createLogger({
+	name: 'pool-test',
+	level: process.env.LOGLEVEL || 'debug'
+});
+
 var INT_NO_V6 = {
 	'lo0': [
 		{ address: '::1', family: 'IPv6' }
@@ -46,6 +51,9 @@ var INT_V6 = {
 };
 
 var interfaces = INT_V6;
+
+var use_a2 = false;
+var srv_ttl = 3600;
 
 function emptyPacket() {
 	return ({
@@ -107,7 +115,7 @@ DummyDnsClient.prototype.lookup = function (options, cb) {
 				name: options.domain,
 				rtype: mod_proto.queryTypes.SRV,
 				rclass: mod_proto.qClasses.IN,
-				rttl: 3600,
+				rttl: srv_ttl,
 				rdata: {
 					priority: 0,
 					weight: 10,
@@ -120,7 +128,7 @@ DummyDnsClient.prototype.lookup = function (options, cb) {
 				name: options.domain,
 				rtype: mod_proto.queryTypes.SRV,
 				rclass: mod_proto.qClasses.IN,
-				rttl: 3600,
+				rttl: srv_ttl,
 				rdata: {
 					priority: 0,
 					weight: 10,
@@ -129,6 +137,21 @@ DummyDnsClient.prototype.lookup = function (options, cb) {
 				}
 			});
 			reply.header.anCount++;
+			if (use_a2) {
+				reply.answer.push({
+					name: options.domain,
+					rtype: mod_proto.queryTypes.SRV,
+					rclass: mod_proto.qClasses.IN,
+					rttl: srv_ttl,
+					rdata: {
+						priority: 0,
+						weight: 10,
+						port: 111,
+						target: 'a2.ok'
+					}
+				});
+				reply.header.anCount++;
+			}
 
 		} else if (parts[1] === 'a' && options.type === 'A') {
 			reply.header.flags.rcode = mod_proto.rCodes.NOERROR;
@@ -138,6 +161,26 @@ DummyDnsClient.prototype.lookup = function (options, cb) {
 				rclass: mod_proto.qClasses.IN,
 				rttl: 3600,
 				rdata: { target: '1.2.3.4' }
+			});
+			reply.header.anCount++;
+		} else if (parts[1] === 'a2' && options.type === 'A') {
+			reply.header.flags.rcode = mod_proto.rCodes.NOERROR;
+			reply.answer.push({
+				name: options.domain,
+				rtype: mod_proto.queryTypes.A,
+				rclass: mod_proto.qClasses.IN,
+				rttl: 3600,
+				rdata: { target: '1.2.3.5' }
+			});
+			reply.header.anCount++;
+		} else if (parts[1] === 'a2' && options.type === 'AAAA') {
+			reply.header.flags.rcode = mod_proto.rCodes.NOERROR;
+			reply.answer.push({
+				name: options.domain,
+				rtype: mod_proto.queryTypes.AAAA,
+				rclass: mod_proto.qClasses.IN,
+				rttl: 1,
+				rdata: { target: '1234:abcd::2' }
 			});
 			reply.header.anCount++;
 		} else if (parts[1] === 'aaaa' && options.type === 'AAAA') {
@@ -150,7 +193,8 @@ DummyDnsClient.prototype.lookup = function (options, cb) {
 				rdata: { target: '1234:abcd::1' }
 			});
 			reply.header.anCount++;
-		} else if (parts[1] === 'a' || parts[1] === 'aaaa') {
+		} else if (parts[1] === 'a' || parts[1] === 'aaaa' ||
+		    parts[1] === 'a2') {
 			reply.header.flags.rcode = mod_proto.rCodes.NOERROR;
 			/* send a NODATA response. */
 		}
@@ -220,7 +264,8 @@ mod_tape.test('SRV lookup', function (t) {
 		service: '_foo._tcp',
 		defaultPort: 112,
 		resolvers: ['1.2.3.4'],
-		recovery: recovery
+		recovery: recovery,
+		log: log
 	});
 	var backends = [];
 	res.on('added', function (key, backend) {
@@ -265,7 +310,8 @@ mod_tape.test('plain A lookup', function (t) {
 		service: '_foo._tcp',
 		defaultPort: 112,
 		resolvers: ['1.2.3.4'],
-		recovery: recovery
+		recovery: recovery,
+		log: log
 	});
 	var backends = [];
 	res.on('added', function (key, backend) {
@@ -306,7 +352,8 @@ mod_tape.test('not found => failed', function (t) {
 		service: '_foo._tcp',
 		defaultPort: 112,
 		resolvers: ['1.2.3.4'],
-		recovery: recovery
+		recovery: recovery,
+		log: log
 	});
 	var backends = [];
 	res.on('added', function (key, backend) {
@@ -333,7 +380,8 @@ mod_tape.test('notimp => failed', function (t) {
 		service: '_foo._tcp',
 		defaultPort: 112,
 		resolvers: ['1.2.3.4'],
-		recovery: recovery
+		recovery: recovery,
+		log: log
 	});
 	var backends = [];
 	res.on('added', function (key, backend) {
@@ -360,7 +408,8 @@ mod_tape.test('SRV ok, notimp on A => failed', function (t) {
 		service: '_foo._tcp',
 		defaultPort: 112,
 		resolvers: ['1.2.3.4'],
-		recovery: recovery
+		recovery: recovery,
+		log: log
 	});
 	var backends = [];
 	res.on('added', function (key, backend) {
@@ -387,7 +436,8 @@ mod_tape.test('short TTL', function (t) {
 		service: '_foo._tcp',
 		defaultPort: 112,
 		resolvers: ['1.2.3.4'],
-		recovery: recovery
+		recovery: recovery,
+		log: log
 	});
 	var backends = [];
 	res.on('added', function (key, backend) {
@@ -436,6 +486,148 @@ mod_tape.test('short TTL', function (t) {
 	res.start();
 });
 
+mod_tape.test('SRV lookup, only one record expire', function (t) {
+	use_a2 = true;
+	var res = new mod_resolver.DNSResolver({
+		domain: 'srv.ok',
+		service: '_foo._tcp',
+		defaultPort: 112,
+		resolvers: ['1.2.3.4'],
+		recovery: recovery,
+		log: log
+	});
+	var backends = [];
+	res.on('added', function (key, backend) {
+		backends.push(backend);
+	});
+	res.on('stateChanged', function (st) {
+		if (st === 'failed') {
+			t.fail();
+			res.stop();
+			t.end();
+		} else if (st === 'running') {
+			t.equal(backends.length, 4);
+			var addrs = backends.map(function (b) {
+				return (b.address);
+			}).sort();
+			t.deepEqual(addrs, ['1.2.3.4', '1.2.3.5',
+			    '1234:abcd::1', '1234:abcd::2']);
+
+			t.equal(nsclients.length, 1);
+			var history = nsclients[0].history.map(function (f) {
+				return (f.domain + '/' + f.type);
+			});
+			t.deepEqual(history, [
+				'_foo._tcp.srv.ok/SRV',
+				'a.ok/AAAA', /* 1 try, got NODATA */
+				'aaaa.ok/AAAA',
+				'a2.ok/AAAA',
+				'a.ok/A',
+				'aaaa.ok/A',  /* 1 try, got NODATA */
+				'a2.ok/A'
+			]);
+
+			nsclients[0].history = [];
+
+			setTimeout(checkAgain, 1500);
+		}
+	});
+	function checkAgain() {
+		t.equal(nsclients.length, 1);
+		var history = nsclients[0].history.map(function (f) {
+			return (f.domain + '/' + f.type);
+		});
+		t.deepEqual(history, [
+			'a2.ok/AAAA',
+			'aaaa.ok/A' /* we didn't give a -ve cache TTL */
+		]);
+
+		nsclients[0].history = [];
+
+		use_a2 = false;
+		srv_ttl = 3600;
+
+		res.stop();
+		t.end();
+	}
+	res.start();
+});
+
+mod_tape.test('SRV lookup, only services expire', function (t) {
+	use_a2 = false;
+	srv_ttl = 1;
+	var res = new mod_resolver.DNSResolver({
+		domain: 'srv.ok',
+		service: '_foo._tcp',
+		defaultPort: 112,
+		resolvers: ['1.2.3.4'],
+		recovery: recovery,
+		log: log
+	});
+	var backends = [];
+	res.on('added', function (key, backend) {
+		backends.push(backend);
+	});
+	res.on('stateChanged', function (st) {
+		if (st === 'failed') {
+			t.fail();
+			res.stop();
+			t.end();
+		} else if (st === 'running') {
+			t.equal(backends.length, 2);
+			var addrs = backends.map(function (b) {
+				return (b.address);
+			}).sort();
+			t.deepEqual(addrs, ['1.2.3.4', '1234:abcd::1']);
+
+			t.equal(nsclients.length, 1);
+			var history = nsclients[0].history.map(function (f) {
+				return (f.domain + '/' + f.type);
+			});
+			t.deepEqual(history, [
+				'_foo._tcp.srv.ok/SRV',
+				'a.ok/AAAA', /* 1 try, got NODATA */
+				'aaaa.ok/AAAA',
+				'a.ok/A',
+				'aaaa.ok/A'  /* 1 try, got NODATA */
+			]);
+
+			nsclients[0].history = [];
+
+			use_a2 = true;
+			setTimeout(checkAgain, 1500);
+		}
+	});
+	function checkAgain() {
+		t.equal(backends.length, 4);
+		var addrs = backends.map(function (b) {
+			return (b.address);
+		}).sort();
+		t.deepEqual(addrs, ['1.2.3.4', '1.2.3.5',
+		    '1234:abcd::1', '1234:abcd::2']);
+
+		t.equal(nsclients.length, 1);
+		var history = nsclients[0].history.map(function (f) {
+			return (f.domain + '/' + f.type);
+		});
+		t.deepEqual(history, [
+			'_foo._tcp.srv.ok/SRV',
+			'a2.ok/AAAA',
+			'aaaa.ok/A', /* we didn't give a -ve cache TTL */
+			'a2.ok/A'
+		]);
+
+		nsclients[0].history = [];
+
+		use_a2 = false;
+		srv_ttl = 3600;
+
+		res.stop();
+		t.end();
+	}
+	res.start();
+});
+
 mod_tape.test('short-cut on non-ipv6', function (t) {
 	interfaces = INT_NO_V6;
 	mod_resolver.DNSResolver._nicCacheUpdated = undefined;
@@ -444,7 +636,8 @@ mod_tape.test('short-cut on non-ipv6', function (t) {
 		service: '_foo._tcp',
 		defaultPort: 112,
 		resolvers: ['1.2.3.4'],
-		recovery: recovery
+		recovery: recovery,
+		log: log
 	});
 	var backends = [];
 	res.on('added', function (key, backend) {
