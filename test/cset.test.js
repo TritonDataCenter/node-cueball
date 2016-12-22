@@ -339,6 +339,66 @@ mod_tape.test('removing a backend', function (t) {
 	});
 });
 
+mod_tape.test('removing an unused backend (cueball#47)', function (t) {
+	connections = [];
+	resolver = new DummyResolver();
+
+	var cset = new mod_cset.ConnectionSet({
+		log: log,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery,
+		target: 2,
+		maximum: 5,
+		resolver: resolver
+	});
+
+	cset.on('stateChanged', function (st) {
+		if (st === 'stopped')
+			t.end();
+	});
+
+	cset.on('added', function (key, conn) {
+	});
+
+	cset.on('removed', function (key, conn) {
+		conn.seen = true;
+		conn.destroy();
+	});
+
+	resolver.emit('added', 'b1', {});
+	resolver.emit('added', 'b2', {});
+	resolver.emit('added', 'b3', {});
+
+	setImmediate(function () {
+		t.equal(connections.length, 2);
+		summarize();
+		var bs = Object.keys(counts).filter(function (k) {
+			return (counts[k] > 0);
+		});
+		var nbs = Object.keys(counts).filter(function (k) {
+			return (counts[k] === 0);
+		});
+		t.equal(bs.length, 2);
+		index[bs[0]][0].connect();
+		index[bs[1]][0].connect();
+
+		resolver.emit('removed', nbs[0]);
+
+		setTimeout(function () {
+			t.equal(connections.length, 2);
+			summarize();
+			t.equal(counts[bs[0]], 1);
+			t.equal(counts[bs[1]], 1);
+			t.strictEqual(counts[nbs[0]], undefined);
+
+			cset.stop();
+			resolver.stop();
+		}, 500);
+	});
+});
+
 mod_tape.test('cset with error', function (t) {
 	connections = [];
 	resolver = new DummyResolver();
