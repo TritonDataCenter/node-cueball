@@ -109,6 +109,61 @@ mod_tape.test('static resolver: no backends', function (t) {
 	});
 });
 
+mod_tape.test('static resolver: defaultPort', function (t) {
+	var resolver, found;
+
+	resolver = new mod_resolver.StaticIpResolver({
+	    'defaultPort': 2021,
+	    'backends': [ {
+		'address': '10.0.0.3',
+		'port': 2022
+	    }, {
+		'address': '10.0.0.4'
+	    }, {
+		'address': '10.0.0.5'
+	    } ]
+	});
+
+	resolver.start();
+
+	found = [];
+	resolver.on('added', function (key, backend) { found.push(backend); });
+	resolver.on('stateChanged', function (st) {
+		if (st === 'running') {
+			var expected;
+
+			t.equal(resolver.count(), 3);
+			t.deepEqual(found, [ {
+			    'name': '10.0.0.3:2022',
+			    'address': '10.0.0.3',
+			    'port': 2022
+			}, {
+			    'name': '10.0.0.4:2021',
+			    'address': '10.0.0.4',
+			    'port': 2021
+			}, {
+			    'name': '10.0.0.5:2021',
+			    'address': '10.0.0.5',
+			    'port': 2021
+			} ]);
+
+			expected = {};
+			found.forEach(function (be) {
+				expected[be['name']] = true;
+			});
+			mod_jsprim.forEachKey(resolver.list(),
+			    function (k, reported) {
+				t.ok(expected.hasOwnProperty(reported['name']));
+				delete (expected[reported['name']]);
+			});
+
+			t.equal(Object.keys(expected).length, 0);
+			resolver.stop();
+			t.end();
+		}
+	});
+});
+
 mod_tape.test('static resolver: several backends', function (t) {
 	var resolver, found;
 

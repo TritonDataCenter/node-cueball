@@ -77,6 +77,9 @@ Parameters
   - `maximum` -- optional Number, maximum number of connections per host
   - `initialDomains` -- optional Array of String, initial domains to create
     connections to at startup (to pre-seed the Agent for quick user later)
+  - `defaultPort` -- optional Number, fallback TCP port to connect to (default
+    80 for HttpAgent, 443 for HttpsAgent). If SRV records for a name are found
+    the port from SRV will always be used instead of this.
   - `tcpKeepAliveInitialDelay` -- optional Number, if supplied, enable TCP
     level keep-alives with the given initial delay (in milliseconds)
   - `ping` -- optional String, URL path to use for health checking. Connection
@@ -356,9 +359,12 @@ contact.  See also: `resolverForIpOrDomain()`.
 Parameters
 
 - `options` -- Object, with keys:
+  - `defaultPort` -- optional Number, fallback port to use for backends
+    that only have an `address` property
   - `backends` -- Array of objects, each having properties:
     - `address` -- String, an IP address to emit as a backend
-    - `port` -- Number, a port number for this backend
+    - `port` -- Number (optional if `defaultPort` used), a port number
+      for this backend
 
 This object provides the same `start()` and `stop()` methods as the Resolver
 class, as well as the same `added` and `removed` events.
@@ -388,7 +394,12 @@ Parameters
   - `input` -- String, either an IP address or DNS name, with optional port
     suffix
   - `resolverConfig` -- Object, a set of additional properties to pass to
-    the resolver constructor.
+    the resolver constructor, with keys:
+    - `defaultPort` -- optional Number, used for both DNS and static names
+    - `recovery` -- Object, see `DNSResolver`, required for DNS lookups
+    - `service` -- optional String, see `DNSResolver`
+    - `resolvers` -- optional Array of String, see `DNSResolver`
+    - `log` -- optional Object, a `bunyan`-style logger to use
 
 The `input` string has the form `HOSTNAME[:PORT]`, where the `[:PORT]` suffix is
 optional, and `HOSTNAME` may be either an IP address or DNS name.
