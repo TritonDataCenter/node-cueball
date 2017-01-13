@@ -152,7 +152,37 @@ DummyDnsClient.prototype.lookup = function (options, cb) {
 				});
 				reply.header.anCount++;
 			}
-
+		} else if (parts[1] === 'dupe' && parts[2] === '_tcp' &&
+		    options.type === 'SRV') {
+			reply.header.flags.rcode = mod_proto.rCodes.NOERROR;
+			reply.answer.push({
+				name: options.domain,
+				rtype: mod_proto.queryTypes.SRV,
+				rclass: mod_proto.qClasses.IN,
+				rttl: srv_ttl,
+				rdata: {
+					priority: 0,
+					weight: 10,
+					port: 112,
+					target: 'dupe.ok'
+				}
+			});
+			reply.header.anCount++;
+			if (use_a2) {
+				reply.answer.push({
+					name: options.domain,
+					rtype: mod_proto.queryTypes.SRV,
+					rclass: mod_proto.qClasses.IN,
+					rttl: srv_ttl,
+					rdata: {
+						priority: 0,
+						weight: 10,
+						port: 112,
+						target: 'dupe.ok'
+					}
+				});
+				reply.header.anCount++;
+			}
 		} else if (parts[1] === 'a' && options.type === 'A') {
 			reply.header.flags.rcode = mod_proto.rCodes.NOERROR;
 			reply.answer.push({
@@ -193,8 +223,34 @@ DummyDnsClient.prototype.lookup = function (options, cb) {
 				rdata: { target: '1234:abcd::1' }
 			});
 			reply.header.anCount++;
+		} else if (parts[1] === 'dupe' && options.type === 'A') {
+			reply.header.flags.rcode = mod_proto.rCodes.NOERROR;
+			reply.answer.push({
+				name: options.domain,
+				rtype: mod_proto.queryTypes.A,
+				rclass: mod_proto.qClasses.IN,
+				rttl: 3600,
+				rdata: { target: '1.2.3.1' }
+			});
+			reply.header.anCount++;
+			reply.answer.push({
+				name: options.domain,
+				rtype: mod_proto.queryTypes.A,
+				rclass: mod_proto.qClasses.IN,
+				rttl: 3600,
+				rdata: { target: '1.2.3.1' }
+			});
+			reply.header.anCount++;
+			reply.answer.push({
+				name: options.domain,
+				rtype: mod_proto.queryTypes.A,
+				rclass: mod_proto.qClasses.IN,
+				rttl: 3600,
+				rdata: { target: '1.2.3.1' }
+			});
+			reply.header.anCount++;
 		} else if (parts[1] === 'a' || parts[1] === 'aaaa' ||
-		    parts[1] === 'a2') {
+		    parts[1] === 'a2' || parts[1] === 'dupe') {
 			reply.header.flags.rcode = mod_proto.rCodes.NOERROR;
 			/* send a NODATA response. */
 		}
@@ -671,6 +727,102 @@ mod_tape.test('short-cut on non-ipv6', function (t) {
 		}
 	});
 	res.start();
+});
+
+mod_tape.test('srv lookup, duped records', function (t) {
+	use_a2 = false;
+	srv_ttl = 1;
+	var res = new mod_resolver.DNSResolver({
+		domain: 'dupe.ok',
+		service: '_foo._tcp',
+		defaultPort: 112,
+		resolvers: ['1.2.3.4'],
+		recovery: recovery,
+		log: log
+	});
+	var backends = [], keys = [];
+	res.on('added', function (key, backend) {
+		keys.push(key);
+		backends.push(backend);
+	});
+	res.on('removed', function (key) {
+		var idx = keys.indexOf(key);
+		keys.splice(idx, 1);
+	});
+	res.on('stateChanged', function (st) {
+		if (st === 'failed') {
+			t.fail();
+			res.stop();
+			t.end();
+		} else if (st === 'running') {
+			t.equal(keys.length, 1);
+			t.equal(backends.length, 1);
+			t.strictEqual(backends[0].address, '1.2.3.1');
+			t.strictEqual(backends[0].port, 112);
+
+			t.equal(nsclients.length, 1);
+			var history = nsclients[0].history.map(function (f) {
+				return (f.domain + '/' + f.type);
+			});
+			t.deepEqual(history, [
+				'_foo._tcp.dupe.ok/SRV', /* no retries, SRV */
+				'dupe.ok/A'
+			]);
+
+			nsclients[0].history = [];
+
+			use_a2 = true;
+			setTimeout(stage2, 1500);
+		}
+	});
+	res.start();
+
+	function stage2() {
+		t.equal(keys.length, 1);
+		t.equal(backends.length, 1);
+		t.strictEqual(backends[0].address, '1.2.3.1');
+		t.strictEqual(backends[0].port, 112);
+
+		t.equal(nsclients.length, 1);
+		var history = nsclients[0].history.map(
+		    function (f) {
+			return (f.domain + '/' + f.type);
+		});
+		t.deepEqual(history, [
+			'_foo._tcp.dupe.ok/SRV'
+		]);
+
+		nsclients[0].history = [];
+
+		use_a2 = false;
+
+		setTimeout(stage3, 1500);
+	}
+
+	function stage3() {
+		t.equal(keys.length, 1);
+		t.equal(backends.length, 1);
+		t.strictEqual(backends[0].address, '1.2.3.1');
+		t.strictEqual(backends[0].port, 112);
+
+		t.equal(nsclients.length, 1);
+		var history = nsclients[0].history.map(
+		    function (f) {
+			return (f.domain + '/' + f.type);
+		});
+		t.deepEqual(history, [
+			'_foo._tcp.dupe.ok/SRV',
+			'_foo._tcp.dupe.ok/SRV'
+		]);
+
+		nsclients[0].history = [];
+
+		use_a2 = false;
+		srv_ttl = 3600;
+
+		res.stop();
+		t.end();
+	}
 });
 
 mod_tape.test('cleanup sandbox', function (t) {

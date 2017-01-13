@@ -370,15 +370,16 @@ mod_tape.test('removing an unused backend (cueball#47)', function (t) {
 	resolver.emit('added', 'b1', {});
 	resolver.emit('added', 'b2', {});
 	resolver.emit('added', 'b3', {});
+	var bkeys = ['b1', 'b2', 'b3'];
 
 	setImmediate(function () {
 		t.equal(connections.length, 2);
 		summarize();
-		var bs = Object.keys(counts).filter(function (k) {
+		var bs = bkeys.filter(function (k) {
 			return (counts[k] > 0);
 		});
-		var nbs = Object.keys(counts).filter(function (k) {
-			return (counts[k] === 0);
+		var nbs = bkeys.filter(function (k) {
+			return (counts[k] === undefined || counts[k] === 0);
 		});
 		t.equal(bs.length, 2);
 		index[bs[0]][0].connect();
