@@ -25,7 +25,7 @@ var log = mod_bunyan.createLogger({
 	level: process.env.LOGLEVEL || 'debug'
 });
 var recovery = {
-	default: {timeout: 1000, retries: 1, delay: 50 }
+	default: {timeout: 500, retries: 1, delay: 0 }
 };
 
 function summarize() {
@@ -44,7 +44,14 @@ function summarize() {
 function DummyResolver() {
 	resolver = this;
 	this.state = 'stopped';
+	this.backends = {};
 	mod_events.EventEmitter.call(this);
+	this.on('added', function (key) {
+		resolver.backends[key] = true;
+	});
+	this.on('removed', function (key) {
+		delete (resolver.backends[key]);
+	});
 	return (new mod_resolver.ResolverFSM(this, {}));
 }
 mod_util.inherits(DummyResolver, mod_events.EventEmitter);
@@ -53,6 +60,9 @@ DummyResolver.prototype.start = function () {
 };
 DummyResolver.prototype.stop = function () {
 	this.state = 'stopped';
+};
+DummyResolver.prototype.count = function () {
+	return (Object.keys(this.backends).length);
 };
 
 function DummyConnection(backend) {
@@ -79,8 +89,8 @@ DummyConnection.prototype.ref = function () {
 };
 DummyConnection.prototype.destroy = function () {
 	var idx = connections.indexOf(this);
-	mod_assert.ok(idx !== -1);
-	connections.splice(idx, 1);
+	if (idx !== -1)
+		connections.splice(idx, 1);
 	this.connected = false;
 	this.dead = true;
 };
@@ -109,14 +119,15 @@ mod_tape.test('empty pool', function (t) {
 	t.strictEqual(resolver.state, 'running');
 	t.strictEqual(connections.length, 0);
 
-	t.throws(function () {
-		pool.claim({errorOnEmpty: true}, function (err) { });
-	});
-
-	pool.claim({timeout: 100}, function (err) {
+	pool.claim({errorOnEmpty: true}, function (err) {
 		t.ok(err);
-		t.ok(err.message.match(/timed out/i));
-		t.end();
+		t.ok(err.message.match(/no backend/i));
+
+		pool.claim({timeout: 100}, function (err2) {
+			t.ok(err2);
+			t.ok(err2.message.match(/timed out/i));
+			t.end();
+		});
 	});
 });
 
@@ -143,21 +154,24 @@ mod_tape.test('pool with one backend', function (t) {
 		t.strictEqual(connections[1].backend, 'b1');
 
 		/* The connections haven't emitted connect() yet. */
-		pool.claim({timeout: 0}, function (err) {
+		pool.claim({timeout: 100}, function (err) {
 			t.ok(err);
 			t.ok(err.message.match(/timed out/i));
 
 			connections.forEach(function (c) {
 				t.strictEqual(c.refd, true);
 				c.connect();
-				t.strictEqual(c.refd, false);
 			});
 
 			setImmediate(claimAgain);
 		});
 
 		function claimAgain() {
-			pool.claim({timeout: 0}, function (err, hdl, conn) {
+			connections.forEach(function (c) {
+				t.strictEqual(c.refd, false);
+			});
+
+			pool.claim({timeout: 100}, function (err, hdl, conn) {
 				t.error(err);
 				t.ok(hdl);
 				t.notStrictEqual(connections.indexOf(conn), -1);
@@ -168,7 +182,7 @@ mod_tape.test('pool with one backend', function (t) {
 		}
 
 		function claimOnceMore() {
-			pool.claim({timeout: 0}, function (err, hdl, conn) {
+			pool.claim({timeout: 100}, function (err, hdl, conn) {
 				t.error(err);
 				t.ok(hdl);
 				t.notStrictEqual(connections.indexOf(conn), -1);
@@ -177,7 +191,7 @@ mod_tape.test('pool with one backend', function (t) {
 		}
 
 		function claimEmpty() {
-			pool.claim({timeout: 0}, function (err) {
+			pool.claim({timeout: 100}, function (err) {
 				t.ok(err);
 				t.ok(err.message.match(/timed out/i));
 				t.end();
@@ -224,16 +238,16 @@ mod_tape.test('async claim can expand up to max', function (t) {
 				});
 			});
 
-			setImmediate(function () {
+			setTimeout(function () {
 				t.equal(connections.length, 2);
 				connections[1].connect();
-			});
+			}, 50);
 		});
 
-		setImmediate(function () {
+		setTimeout(function () {
 			t.equal(connections.length, 1);
 			connections[0].connect();
-		});
+		}, 50);
 	});
 });
 
@@ -266,7 +280,7 @@ mod_tape.test('spares are evenly balanced', function (t) {
 		resolver.emit('added', 'b3', {});
 		resolver.emit('added', 'b4', {});
 
-		setImmediate(function () {
+		setTimeout(function () {
 			connections.forEach(function (c) {
 				if (!c.connected)
 					c.connect();
@@ -278,7 +292,7 @@ mod_tape.test('spares are evenly balanced', function (t) {
 			t.deepEqual(bs2.sort(), ['b1', 'b2', 'b3', 'b4']);
 
 			t.end();
-		});
+		}, 50);
 	});
 });
 
@@ -305,6 +319,9 @@ mod_tape.test('error while claimed', function (t) {
 
 		pool.claim(function (err, handle, conn) {
 			t.strictEqual(conn, connections[0]);
+			conn.once('error', function () {
+				/* do nothing */
+			});
 			conn.emit('error', new Error('testing'));
 			handle.release();
 
@@ -316,6 +333,47 @@ mod_tape.test('error while claimed', function (t) {
 				t.end();
 			}, 500);
 		});
+	});
+});
+
+mod_tape.test('close while idle', function (t) {
+	connections = [];
+	resolver = undefined;
+
+	var pool = new mod_pool.ConnectionPool({
+		log: log,
+		domain: 'foobar',
+		spares: 1,
+		maximum: 1,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery
+	});
+	t.ok(resolver);
+
+	resolver.emit('added', 'b1', {});
+	setImmediate(function () {
+		t.equal(connections.length, 1);
+		var conn = connections[0];
+		conn.connect();
+
+		setTimeout(function () {
+			conn.emit('close');
+
+			setImmediate(function () {
+				t.ok(conn.dead);
+				t.equal(connections.length, 1);
+				t.notStrictEqual(conn, connections[0]);
+				t.ok(!connections[0].dead);
+				connections[0].connect();
+
+				t.strictEqual(conn.sm_fsm.fsm_history.
+				    indexOf('backoff'), -1);
+				pool.stop();
+				t.end();
+			});
+		}, 100);
 	});
 });
 
@@ -370,20 +428,27 @@ mod_tape.test('removing a backend', function (t) {
 			resolver.emit('removed', 'b2');
 
 			setTimeout(function () {
+				summarize();
+				if (counts.b2 > 0)
+					index.b2[0].emit('error', new Error());
+			}, 400);
+
+			setTimeout(function () {
 				t.ok(conn.dead);
 				t.equal(connections.length, 2);
 				summarize();
 				t.deepEqual(counts, { 'b1': 2 });
 
 				pool.stop();
-			}, 500);
-		}, 500);
+			}, 800);
+		}, 400);
 	});
 });
 
 mod_tape.test('pool failure', function (t) {
 	connections = [];
 	resolver = undefined;
+	var timer;
 
 	recovery.default.retries = 2;
 	var pool = new mod_pool.ConnectionPool({
@@ -400,6 +465,8 @@ mod_tape.test('pool failure', function (t) {
 
 	pool.on('stateChanged', function (st) {
 		if (st === 'stopped') {
+			if (timer !== undefined)
+				clearTimeout(timer);
 			t.end();
 		}
 	});
@@ -441,10 +508,14 @@ mod_tape.test('pool failure', function (t) {
 
 					index.b1[0].connect();
 
-					setImmediate(function () {
+					setTimeout(function () {
 						t.ok(pool.isInState('running'));
 						pool.stop();
-					});
+
+						/* Stop tape from giving up. */
+						timer = setTimeout(
+						    function () {}, 5000);
+					}, 100);
 				}, 100);
 			}, 100);
 		}, 100);
@@ -455,6 +526,7 @@ mod_tape.test('pool failure / retry race', function (t) {
 	connections = [];
 	resolver = undefined;
 
+	var timer;
 	recovery.default.retries = 2;
 	var pool = new mod_pool.ConnectionPool({
 		log: log,
@@ -470,6 +542,8 @@ mod_tape.test('pool failure / retry race', function (t) {
 
 	pool.on('stateChanged', function (st) {
 		if (st === 'stopped') {
+			if (timer !== undefined)
+				clearTimeout(timer);
 			t.end();
 		}
 	});
@@ -511,6 +585,9 @@ mod_tape.test('pool failure / retry race', function (t) {
 					t.deepEqual(counts, { 'b1': 2 });
 
 					pool.stop();
+					/* Stop tape from giving up. */
+					timer = setTimeout(function () {},
+					    5000);
 				}, 100);
 			}, 100);
 		}, 100);

@@ -682,17 +682,28 @@ Parameters
 Emitted when a new connection becomes available in the set. This event *must*
 have a handler on it at all times.
 
+The `handle` that is given as the third argument to this event has two methods
+`.release()` and `.close()`, like a Pool handle. As with Pool handles, it can
+be used to indicate the failure of a connection (e.g. due to a protocol error
+making safe use of the connection impossible) at any time, but unlike a Pool
+handle, it is an error to call `.release()` until after a `'removed'` event
+has been emitted.
+
+The user of the ConnectionSet should store both the `connection` and `handle`
+in such a way as to be able to retrieve them using the `key`.
+
 Parameters
  - `key` -- String, a unique key to identify this connection
  - `connection` -- Object, the connection as returned by the constructor
+ - `handle` -- Object, a handle to be used in response to a 'removed' event
+   about this connection
 
 ### Event `removed`
 
 Emitted when an existing connection should be removed from the pool. This event
 *must* have a handler on it at all times. The handler is obligated to take all
-necessary actions to drain the connection of outstanding requests and then close
-it. The emission of this event must cause the connection object to emit
-`'close'` as soon as possible.
+necessary actions to drain the connection of outstanding requests and then
+call the `.release()` method on the relevant handle.
 
 Parameters
  - `key` -- String, a unique key to identify the connection

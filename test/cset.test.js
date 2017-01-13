@@ -108,7 +108,7 @@ mod_tape.test('cset with one backend', function (t) {
 			t.end();
 	});
 
-	cset.on('added', function (key, conn) {
+	cset.on('added', function (key, conn, hdl) {
 		t.notStrictEqual(connections.indexOf(conn), -1);
 		t.strictEqual(conn.refd, true);
 		if (connections.length > 1) {
@@ -122,10 +122,10 @@ mod_tape.test('cset with one backend', function (t) {
 		}
 	});
 
-	cset.on('removed', function (key, conn) {
+	cset.on('removed', function (key, conn, hdl) {
 		if (!cset.isInState('stopping'))
 			t.fail('removed ' + key);
-		conn.destroy();
+		hdl.release();
 	});
 
 	resolver.start();
@@ -133,9 +133,11 @@ mod_tape.test('cset with one backend', function (t) {
 
 	resolver.emit('added', 'b1', {});
 
-	setImmediate(function () {
+	setTimeout(function () {
 		connections.forEach(function (c) { c.connect(); });
-	});
+	}, 100);
+
+	setTimeout(function () {}, 5000);
 });
 
 mod_tape.test('cset with two backends', function (t) {
@@ -158,7 +160,7 @@ mod_tape.test('cset with two backends', function (t) {
 			t.end();
 	});
 
-	cset.on('added', function (key, conn) {
+	cset.on('added', function (key, conn, hdl) {
 		t.notStrictEqual(connections.indexOf(conn), -1);
 		t.strictEqual(conn.refd, true);
 		if (connections.length > 2) {
@@ -176,10 +178,10 @@ mod_tape.test('cset with two backends', function (t) {
 		}
 	});
 
-	cset.on('removed', function (key, conn) {
+	cset.on('removed', function (key, conn, hdl) {
 		if (!cset.isInState('stopping'))
 			t.fail();
-		conn.destroy();
+		hdl.release();
 	});
 
 	resolver.start();
@@ -218,10 +220,10 @@ mod_tape.test('cset swapping', function (t) {
 		inset.push(conn);
 	});
 
-	cset.on('removed', function (key, conn) {
+	cset.on('removed', function (key, conn, hdl) {
 		t.ok(!conn.dead);
 		conn.seen = true;
-		conn.destroy();
+		hdl.release();
 		var idx = inset.indexOf(conn);
 		if (idx !== -1)
 			inset.splice(idx, 1);
@@ -289,17 +291,21 @@ mod_tape.test('removing a backend', function (t) {
 		resolver: resolver
 	});
 
+	var stopTimer;
 	cset.on('stateChanged', function (st) {
-		if (st === 'stopped')
+		if (st === 'stopped') {
+			if (stopTimer !== undefined)
+				clearTimeout(stopTimer);
 			t.end();
+		}
 	});
 
 	cset.on('added', function (key, conn) {
 	});
 
-	cset.on('removed', function (key, conn) {
+	cset.on('removed', function (key, conn, hdl) {
 		conn.seen = true;
-		conn.destroy();
+		hdl.release();
 	});
 
 	resolver.emit('added', 'b1', {});
@@ -334,6 +340,7 @@ mod_tape.test('removing a backend', function (t) {
 				t.deepEqual(counts, { 'b1': 1 });
 				cset.stop();
 				resolver.stop();
+				stopTimer = setTimeout(function () {}, 5000);
 			}, 500);
 		}, 500);
 	});
@@ -354,17 +361,21 @@ mod_tape.test('removing an unused backend (cueball#47)', function (t) {
 		resolver: resolver
 	});
 
+	var stopTimer;
 	cset.on('stateChanged', function (st) {
-		if (st === 'stopped')
+		if (st === 'stopped') {
+			if (stopTimer !== undefined)
+				clearTimeout(stopTimer);
 			t.end();
+		}
 	});
 
 	cset.on('added', function (key, conn) {
 	});
 
-	cset.on('removed', function (key, conn) {
+	cset.on('removed', function (key, conn, hdl) {
 		conn.seen = true;
-		conn.destroy();
+		hdl.release();
 	});
 
 	resolver.emit('added', 'b1', {});
@@ -396,6 +407,8 @@ mod_tape.test('removing an unused backend (cueball#47)', function (t) {
 
 			cset.stop();
 			resolver.stop();
+
+			stopTimer = setTimeout(function () { }, 5000);
 		}, 500);
 	});
 });
@@ -416,14 +429,21 @@ mod_tape.test('cset with error', function (t) {
 		resolver: resolver
 	});
 
+	var stopTimer;
 	cset.on('stateChanged', function (st) {
 		if (st === 'stopped') {
 			t.ok(errorKey === undefined);
+			if (stopTimer !== undefined)
+				clearTimeout(stopTimer);
 			t.end();
 		}
 	});
 
 	var errorKey;
+	function silentErrHandler(err) {}
+	function failErrHandler(err) {
+		t.error(err);
+	}
 	cset.on('added', function (key, conn) {
 		t.notStrictEqual(connections.indexOf(conn), -1);
 		t.strictEqual(conn.refd, true);
@@ -436,19 +456,25 @@ mod_tape.test('cset with error', function (t) {
 			}).sort();
 			t.deepEqual(backends, ['b1', 'b2']);
 
+			conn.on('error', silentErrHandler);
 			errorKey = key;
 			conn.emit('error', new Error());
+		} else {
+			conn.on('error', failErrHandler);
 		}
 	});
 
-	cset.on('removed', function (key, conn) {
-		conn.destroy();
+	cset.on('removed', function (key, conn, hdl) {
+		conn.removeListener('error', silentErrHandler);
+		conn.removeListener('error', failErrHandler);
+		hdl.release();
 		if (key === errorKey) {
 			errorKey = undefined;
 			t.ok(conn.dead);
 
 			cset.stop();
 			resolver.stop();
+			stopTimer = setTimeout(function () {}, 5000);
 			return;
 		}
 		if (!cset.isInState('stopping'))
