@@ -1,0 +1,48 @@
+:toc: macro
+
+# Changelog
+
+toc::[]
+
+## v2.x
+
+### v2.0.0
+
+New major release, due to API change in `ConnectionSet`.
+
+API changes:
+
+ - `ConnectionSet` now requires the use of handles to indicate when connections
+   have been drained.
+    * Client code must store the `handle` which is now the 3rd argument to
+      all `'added'` events.
+    * Client code must be modified to call `handle.release()` (for a successful
+      drain and clean close) or `handle.close()` (for failure) and *not* call
+      `.destroy()` on the connection, after `'removed'` is emitted.
+
+Bugs fixed:
+
+ - #77, #72, #73 rewrite of connection management FSMs. Solves a swathe of
+   issues around error handling and protocols that don't keep-alive idle
+   connections.
+
+## v1.x
+
+### v1.3.2
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #70 possible crash whenever using the kang "pool monitor" feature.
+ - #76 silenced spurious EventEmitter "leak" warnings
+
+### v1.3.1
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #69 clearer log messages around connection attempts, failures and delays
+ - #71 some additional assertions related to #70
+ - #61 handling `null` as well as `undefined` for optional settings
