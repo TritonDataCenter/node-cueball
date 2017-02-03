@@ -1,0 +1,167 @@
+:toc: left
+:source-highlighter: pygments
+:doctype: book
+:idprefix:
+:docinfo:
+
+# cueball
+
+## About
+
+`cueball` is a node.js library for "playing pool" -- managing a pool of
+connections to a multi-node service where nodes are listed in DNS.
+
+It supports DNS SRV record style services, as well as the simpler kind with
+multiple A/AAAA records under the same name, correctly respecting record
+TTLs and making use of Additional sections where possible.
+
+The library also includes an HTTP `Agent` which can be used with the regular
+node `http` client stack, including libraries like `restify` which layer on
+top of it. The `Agent` transparently creates pools for services as you make
+requests to connect to them.
+
+## Installation
+
+```
+npm install cueball
+```
+
+## License
+
+MPL-v2
+
+## Contributing
+
+Contributions should be made via the https://cr.joyent.us[Joyent Gerrit].
+
+## Usage examples
+
+### HTTP with node http.js or `restify`
+
+Using cueball to pool connections to servers for a node http.js client or
+any framework built on top of it is very straightforward: simply construct a
+<<agent,`cueball.HttpAgent`>> or `HttpsAgent` and supply it as your `agent`
+parameter.
+
+For example, with the `restify` framework:
+
+[source,js]
+------------------------------------------------------------------------------
+const mod_cueball = require('cueball');
+const mod_restify = require('restify-clients');
+
+var client = mod_restify.createStringClient({
+    url: 'https://us-east.manta.joyent.com',
+    agent: new mod_cueball.HttpsAgent({
+        spares: 4, maximum: 10,
+        recovery: {
+            default: {
+                timeout: 2000,
+                retries: 5,
+                delay: 250,
+                maxDelay: 1000
+            }
+        }
+    })
+});
+
+client.get('/foobar/public', function (err, req, res, data) {
+    ...
+});
+------------------------------------------------------------------------------
+
+This will create a connection pool that aims to keep 4 spare connections at
+all times, up to a maximum of 10 total connections, for
+`us-east.manta.joyent.com`.
+
+It will respect DNS TTLs and automatically rebalance the pool as IP addresses
+are added to or removed from DNS.
+
+### LDAP with `ldapjs`
+
+You can easily pool connections to non-HTTP protocols, too, by using the
+<<pool,`cueball.ConnectionPool`>> class. This requires you to set up a
+"constructor" function and provide a few more parameters:
+
+[source,js]
+------------------------------------------------------------------------------
+const mod_cueball = require('cueball');
+const mod_ldapjs = require('ldapjs');
+
+function ldapConnect(backend) {
+    var client = mod_ldapjs.createClient({
+        url: 'ldaps://' + backend.address + ':' + backend.port,
+        queueDisable: true,
+        reconnect: false
+    });
+    client.on('setup', function (cl, cb) {
+        cl.bind('cn=root', 'password', cb);
+    });
+}
+
+var pool = new mod_cueball.ConnectionPool({
+    domain: 'ldap.example.com',
+    service: '_ldaps._tcp',
+    defaultPort: 636,
+    spares: 2,
+    maximum: 8,
+    constructor: ldapConnect,
+    recovery: {
+        default: {
+            timeout: 2000,
+            retries: 5,
+            delay: 250,
+            maxDelay: 1000
+        }
+    }
+});
+
+pool.claim(function (err, hdl, client) {
+    if (err) {
+        /* ... */
+        return;
+    }
+
+    var base = 'ou=users, o=example';
+    var opts = {
+        scope: 'one',
+        filter: /* ... */
+    };
+    client.search(base, opts, function (err, res) {
+        /* ... */
+        hdl.release();
+    });
+});
+------------------------------------------------------------------------------
+
+This will create a pool of pre-authenticated LDAP connections ready for use in
+your application. Once you call `hdl.release()` to tell `cueball` you're done
+with the connection, it goes back to the pool ready to be re-used.
+
+Note that `cueball` also automatically uses DNS `SRV` records if available to
+locate your LDAP servers.
+
+### Command-line tools
+
+As well as being useable in long-lived server processes, `cueball` can also be
+used for command-line tools. A connection pool emits events to tell you about
+its state, including at the point where it has "failed" (run out of retries):
+
+[source,js]
+------------------------------------------------------------------------------
+pool.on('stateChanged', function (st) {
+    if (st === 'failed') {
+        console.error('failed to connect to any backends');
+        pool.stop();
+    }
+})
+------------------------------------------------------------------------------
+
+The `.stop()` method will spin down the pool, destroying all its connections
+cleanly as soon as any outstanding claims are done, which will then allow the
+process to exit.
+
+## Reading documentation online
+
+You can view the https://joyent.github.io/node-cueball[full API documentation]
+rendered online.

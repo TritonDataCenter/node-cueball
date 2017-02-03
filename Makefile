@@ -20,10 +20,12 @@ JSON		:= ./node_modules/.bin/json
 include ./tools/mk/Makefile.defs
 
 #
-# Configuration used by Makefile.defs and Makefile.targ to generate 
+# Configuration used by Makefile.defs and Makefile.targ to generate
 # "check" and "docs" targets.
 #
-DOC_FILES	 = index.md boilerplateapi.md
+DOC_SRCFILES	 = index.adoc internals.adoc api.adoc
+DOC_ASSETS	 = docs/timing1.svg
+
 JSON_FILES	 = package.json
 JS_FILES	:= bin/cbresolve $(shell find lib test -name '*.js')
 JSL_FILES_NODE	 = $(JS_FILES)
@@ -58,6 +60,16 @@ coverage: all
 	$(NPM_EXEC) install istanbul && \
 	    ./node_modules/.bin/istanbul cover \
 	    $(TAP) test/*.js
+
+DOC_OUTPUTS	 = $(patsubst %.adoc,docs/%.html,$(DOC_SRCFILES))
+docs/%.html: docs/%.adoc
+	asciidoctor -o $@ -b html5 $<
+
+docs:: $(DOC_OUTPUTS)
+
+.PHONY: ghdocs
+ghdocs: $(DOC_OUTPUTS) $(DOC_ASSETS)
+	./tools/update-ghdocs $(DOC_OUTPUTS) $(DOC_ASSETS)
 
 include ./tools/mk/Makefile.deps
 include ./tools/mk/Makefile.node_deps.targ

@@ -1,9 +1,8 @@
-:toc: macro
+:toc: left
 :numbered:
+:data-uri:
 
 # Cueball Internals
-
-toc::[]
 
 ## Introduction
 

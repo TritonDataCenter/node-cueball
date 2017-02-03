@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+SOURCE="${0}"
+while [ -h "$SOURCE" ]; do
+	DIR="$(cd -P "$( dirname "$SOURCE" )" && pwd)"
+	SOURCE="$(readlink "$SOURCE")"
+	[[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+
+set -ex
+
+SCRIPTDIR="$(cd -P "$( dirname "$SOURCE" )" && pwd)"
+
+ROOTDIR="$(cd -P "$( dirname "$SCRIPTDIR" )" && pwd)"
+
+GHURI=$(cd "$ROOTDIR" && git remote -v | awk '
+	$2 ~ /(^|@)github[.]com[:\/]/ && $3 == "(push)" {
+		printf("%s\n", $2);
+		exit(0);
+	}
+')
+
+TMPDIR="$(mktemp -d)"
+function clean {
+	rm -fr "${TMPDIR}"
+}
+trap clean EXIT
+
+pushd "${TMPDIR}"
+git clone "file://${ROOTDIR}" ./repo
+cd repo
+git remote add ghdocs "${GHURI}"
+git branch -D gh-pages || true
+git checkout --orphan gh-pages
+rm -fr * .gitignore .gitmodules .npmignore .travis.yml
+git add -u
+popd
+
+while (( "$#" )); do
+	SRC="$1"
+	TARGET="${TMPDIR}/repo/$(basename "$SRC")"
+	cp "${SRC}" "${TARGET}"
+	shift
+done
+
+pushd "${TMPDIR}/repo"
+git add *
+git commit -m "auto-generated ghdocs commit"
+git push -f ghdocs gh-pages
+popd

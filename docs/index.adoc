@@ -1,0 +1,19 @@
+:toc: left
+:source-highlighter: pygments
+:doctype: book
+:idprefix:
+:docinfo:
+
+include::../README.adoc[]
+
+include::api.adoc[]
+
+# Other documentation
+
+## Cueball internals
+
+The link:./internals.html[Cueball internals] documentation explains the design
+and implementation of the library in depth.
+
+Some of the material may be useful to advanced end-users of the library as
+well, to fully understand its behaviour.
