@@ -500,8 +500,17 @@ mod_tape.test('pool failure', function (t) {
 				index.b1[0].emit('error', new Error());
 				index.b1[1].emit('error', new Error());
 
+				var sawErr = false;
+				pool.claim(function (err) {
+					t.ok(err);
+					t.strictEqual(err.name,
+					    'PoolFailedError');
+					sawErr = true;
+				});
+
 				setTimeout(function () {
 					t.ok(pool.isInState('failed'));
+					t.ok(sawErr);
 
 					t.equal(connections.length, 1);
 					summarize();
