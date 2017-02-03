@@ -25,6 +25,11 @@ Bugs fixed:
  - #77, #72, #73 rewrite of connection management FSMs. Solves a swathe of
    issues around error handling and protocols that don't keep-alive idle
    connections.
+ - #83 new "internals" guide to explain the design and implementation of the
+   library for new developers
+ - #75 doc fix for optional parameters that are actually required
+ - #82 pools should error-out all outstanding claims when entering "failed"
+   state
 
 ## v1.x
 
