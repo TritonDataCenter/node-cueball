@@ -70,11 +70,11 @@ Parameters
 
 - `options` -- Object, with keys:
   - `recovery` -- Object, a recovery spec (see below)
+  - `spares` -- Number, number of spares wanted in the pool per host
+  - `maximum` -- Number, maximum number of connections per host
   - `resolvers` -- optional Array of String, either containing IP addresses to
     use as nameservers, or a single string for Dynamic Resolver mode
   - `log` -- optional Object, a `bunyan`-style logger to use
-  - `spares` -- optional Number, number of spares wanted in the pool per host
-  - `maximum` -- optional Number, maximum number of connections per host
   - `initialDomains` -- optional Array of String, initial domains to create
     connections to at startup (to pre-seed the Agent for quick user later)
   - `defaultPort` -- optional Number, fallback TCP port to connect to (default
@@ -115,14 +115,14 @@ Parameters
     to the given backend and return it
   - `domain` -- String, name to look up to find backends.
   - `recovery` -- Object, a recovery spec (see below)
+  - `spares` -- Number, number of spares wanted in the pool per host
+  - `maximum` -- Number, maximum number of connections per host
   - `service` -- optional String, name of SRV service (e.g. `_http._tcp`)
   - `defaultPort` -- optional Number, port to use for plain A/AAAA records
   - `resolvers` -- optional Array of String, either containing IP addresses to
     use as nameservers, or a single string for Dynamic Resolver mode (default
     uses system resolvers from `/etc/resolv.conf`)
   - `log` -- optional Object, a `bunyan`-style logger to use
-  - `spares` -- optional Number, number of spares wanted in the pool per host
-  - `maximum` -- optional Number, maximum number of connections per host
   - `maxDNSConcurrency` -- optional Number, max number of DNS queries to issue
     at once (default 5)
   - `checkTimeout` -- optional Number, milliseconds of idle time before
@@ -670,12 +670,12 @@ Parameters
    - `resolver` -- Object, an instance of the Resolver interface
    - `constructor` -- Function, same as in ConnectionPool
    - `recovery` -- Object, a recovery spec (see below)
-   - `log` -- optional Object, a `bunyan`-style logger to use
-   - `target` -- optional Number, target number of connections to be made
+   - `target` -- Number, target number of connections to be made
                  available in the entire set
-   - `maximum` -- optional Number, maximum number of sockets opened by the set.
+   - `maximum` -- Number, maximum number of sockets opened by the set.
                   Note that this number may temporarily be exceeded by 1 socket
                   to allow the set to re-balance.
+   - `log` -- optional Object, a `bunyan`-style logger to use
 
 ### Event `'added'`
 
