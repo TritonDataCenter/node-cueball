@@ -49,6 +49,12 @@ Parameters
 
 - `cb` -- optional Function (err)
 
+NOTE: Any pools spun up by the Agent will continue to keep the process
+open even if there are no outstanding requests (due to the spare connections
+held by the pool). The `stop()` method should be used on an Agent if your
+program does not plan to use it again and wishes to be able to exit node
+without calling `process.exit()`.
+
 [[pool]]
 ## ConnectionPool
 
@@ -139,6 +145,11 @@ configuration properties.
 ### `#stop()`
 
 Stops the connection pool and its `Resolver`, then destroys all connections.
+
+NOTE: Any pool running in a process will continue to keep the process
+open even if there are no outstanding claims or activity (due to the spare
+connections held by the pool). The `stop()` method is the correct way to
+allow the process to exit if there is no more work to be done using the Pool.
 
 ### `#claim([options, ]callback)`
 
@@ -432,6 +443,15 @@ connection to the backend specified by the first argument to the constructor.
 When the connection succeeds, it must emit the event `connect`. No arguments are
 required.
 
+### `->close()` (required)
+
+Connection objects must emit `close` as the final event they emit after the
+connection has ended. No events may be emitted after `close`.
+
+### `#destroy()` (required)
+
+Immediately disconnects the connection and proceeds to emit `close`.
+
 ### `->error(errObj)`
 
 Connection objects may emit `error` at any time in response to a fatal error.
@@ -444,29 +464,6 @@ should be `true`).
 
 May also be emitted as `connectError` only in the state before `connect` has
 been emitted.
-
-### `->close()` (required)
-
-Connection objects must emit `close` as the final event they emit after the
-connection has ended. No events may be emitted after `close`.
-
-### `#ref()` (required)
-
-Marks the connection as "referenced", meaning that it should keep the Node
-process running even if no event handlers are registered on it.
-
-It is generally acceptable for long-lived server processes (which never intend
-to exit in normal operation) to provide a Connection that implements `ref()` and
-`unref()` as no-ops.
-
-### `#unref()` (required)
-
-Marks the connection as "unreferenced", allowing the Node process to exit if it
-is the only remaining source of events.
-
-### `#destroy()` (required)
-
-Immediately disconnects the connection and proceeds to emit `close`.
 
 ### `->timeout()`
 

@@ -169,7 +169,7 @@ mod_tape.test('pool with one backend', function (t) {
 
 		function claimAgain() {
 			connections.forEach(function (c) {
-				t.strictEqual(c.refd, false);
+				t.strictEqual(c.refd, true);
 			});
 
 			pool.claim({timeout: 100}, function (err, hdl, conn) {
@@ -704,7 +704,7 @@ mod_tape.test('claim cancellation', function (t) {
 
 		function claimAgain() {
 			connections.forEach(function (c) {
-				t.strictEqual(c.refd, false);
+				t.strictEqual(c.refd, true);
 			});
 
 			var claim = pool.claim({timeout: 100},

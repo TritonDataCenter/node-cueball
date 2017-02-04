@@ -6,6 +6,22 @@ toc::[]
 
 ## v2.x
 
+### v2.1.0
+
+New minor release, due to relaxation of API requirements.
+
+API changes:
+
+ - `Connection` interface implementations (i.e. implementers of the objects
+   that are returned by the `constructor` parameter) are no longer required to
+   implement `#ref()` or `#unref()`.
+
+Bugs fixed:
+
+ - #85 documentation improvements and re-organization
+ - #26 clarified that programs that wish to exit cleanly without calling
+   `process.exit()` must call `.stop()` on agents or pools.
+
 ### v2.0.1
 
 Bugs fixed:
