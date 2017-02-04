@@ -6,6 +6,12 @@ toc::[]
 
 ## v2.x
 
+### v2.0.1
+
+Bugs fixed:
+
+ - #86 pool monitor broken on csets (kang endpoint always returns InternalError)
+
 ### v2.0.0
 
 New major release, due to API change in `ConnectionSet`.
