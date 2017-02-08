@@ -21,6 +21,8 @@ Bugs fixed:
  - #85 documentation improvements and re-organization
  - #26 clarified that programs that wish to exit cleanly without calling
    `process.exit()` must call `.stop()` on agents or pools.
+ - #90 ensure cueball works with node 0.10
+ - #88 correct a bug that cause a crash bringing up a backend after pool failure
 
 ### v2.0.1
 
