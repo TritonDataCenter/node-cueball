@@ -491,3 +491,65 @@ mod_tape.test('cset with error', function (t) {
 		connections.forEach(function (c) { c.connect(); });
 	});
 });
+
+mod_tape.test('cset connect-reject (#92)', function (t) {
+	connections = [];
+	var inset = [];
+	resolver = new DummyResolver();
+
+	var cset = new mod_cset.ConnectionSet({
+		log: log,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: {
+			default: {
+				timeout: 1000,
+				retries: 0,
+				delay: 0
+			}
+		},
+		target: 2,
+		maximum: 4,
+		resolver: resolver
+	});
+
+	cset.on('stateChanged', function (st) {
+		if (st === 'failed')
+			cset.stop();
+		if (st === 'stopped') {
+			t.deepEqual(inset, []);
+			t.end();
+		}
+	});
+
+	cset.on('added', function (key, conn) {
+		inset.push(key);
+	});
+
+	cset.on('removed', function (key, conn, hdl) {
+		var idx = inset.indexOf(key);
+		t.notStrictEqual(idx, -1);
+		inset.splice(idx, 1);
+
+		t.ok(conn);
+		t.ok(hdl);
+		t.ok(conn.dead);
+		conn.seen = true;
+		hdl.release();
+	});
+
+	resolver.start();
+	t.strictEqual(connections.length, 0);
+
+	resolver.emit('added', 'b1', {});
+
+	setImmediate(function () {
+		connections.forEach(function (c) {
+			c.connect();
+			setImmediate(function () {
+				c.destroy();
+			});
+		});
+	});
+});

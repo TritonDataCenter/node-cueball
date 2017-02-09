@@ -239,6 +239,26 @@ cleared out, calling their callbacks with errors.
 The pool will remain in the "failed" state until one of its "monitor" slots
 manages to connect to a backend again.
 
+### ConnectionSet logical connections
+
+In the `ConnectionSet` implementation, there is one more additional FSM in use:
+the `LogicalConnection` FSM.
+
+The API for sets has particular rules about when the `'added'` and `'removed'`
+events about a "connection key" must be emitted, and the time at which to
+generate a new connection key for a slot. These special rules are implemented in
+the states of the `LogicalConnection`, which wraps around a slot and claim
+handle.
+
+A logical connection is created as soon as each slot is created in the
+connection set. As soon as the slot is ready to contribute a connection to the
+set, the logical connection handles the events over that connection's lifetime.
+The logical connection's life ends when the underlying socket has disconnected
+and the user of the set API has released the claim handle.
+
+After a logical connection has stopped, the set decides whether to create a new
+one for that slot or not, and the process starts again.
+
 ## In detail: the connection FSMs
 
 Up until now, we have discussed the slot as if it was a single FSM. In actual
