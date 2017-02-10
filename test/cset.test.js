@@ -553,3 +553,204 @@ mod_tape.test('cset connect-reject (#92)', function (t) {
 		});
 	});
 });
+
+mod_tape.test('removing last backend (resolver)', function (t) {
+	connections = [];
+	resolver = new DummyResolver();
+	var inset = [];
+
+	var cset = new mod_cset.ConnectionSet({
+		log: log,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery,
+		target: 3,
+		maximum: 5,
+		resolver: resolver
+	});
+
+	cset.on('stateChanged', function (st) {
+		if (st === 'stopped') {
+			t.end();
+		}
+	});
+
+	cset.on('added', function (key, conn) {
+		inset.push(key);
+	});
+
+	cset.on('removed', function (key, conn, hdl) {
+		var idx = inset.indexOf(key);
+		t.notStrictEqual(idx, -1);
+		inset.splice(idx, 1);
+		conn.seen = true;
+		hdl.release();
+	});
+
+	resolver.emit('added', 'b1', {});
+	resolver.emit('added', 'b2', {});
+	resolver.emit('added', 'b3', {});
+	resolver.emit('added', 'b4', {});
+
+	cset.cs_keys.sort();
+	t.deepEqual(cset.cs_keys, ['b1', 'b2', 'b3', 'b4']);
+
+	setImmediate(function () {
+		t.equal(connections.length, 3);
+		summarize();
+		t.deepEqual(counts, { 'b1': 1, 'b2': 1, 'b3': 1 });
+		index.b1[0].connect();
+		index.b2[0].connect();
+		index.b3[0].connect();
+
+		setTimeout(function () {
+			t.equal(connections.length, 3);
+			summarize();
+			t.deepEqual(counts, { 'b1': 1, 'b2': 1, 'b3': 1 });
+			t.equal(inset.length, 3);
+
+			var conn1 = index.b1[0];
+			var conn2 = index.b2[0];
+			var conn3 = index.b3[0];
+
+			resolver.emit('removed', 'b1');
+			resolver.emit('removed', 'b2');
+			resolver.emit('removed', 'b3');
+
+			setTimeout(function () {
+				t.ok(conn1.dead);
+				t.ok(conn2.dead);
+				t.ok(conn3.dead);
+				t.ok(conn1.seen);
+				t.ok(conn2.seen);
+				t.ok(conn3.seen);
+
+				t.equal(inset.length, 0);
+				t.equal(connections.length, 1);
+				summarize();
+				t.deepEqual(counts, { 'b4': 1 });
+				index.b4[0].connect();
+
+				setTimeout(function () {
+					t.equal(connections.length, 1);
+					t.equal(inset.length, 1);
+					summarize();
+					t.deepEqual(counts, { 'b4': 1 });
+					cset.stop();
+					resolver.stop();
+				}, 1000);
+			}, 500);
+		}, 500);
+	});
+});
+
+mod_tape.test('removing last backend (rebal)', function (t) {
+	connections = [];
+	resolver = new DummyResolver();
+	var inset = [];
+	var events = [];
+
+	var cset = new mod_cset.ConnectionSet({
+		log: log,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery,
+		target: 2,
+		maximum: 5,
+		resolver: resolver
+	});
+
+	cset.on('stateChanged', function (st) {
+		if (st === 'stopped') {
+			t.end();
+		}
+	});
+
+	cset.on('added', function (key, conn) {
+		inset.push(key);
+		events.push(['added', conn.backend]);
+	});
+
+	cset.on('removed', function (key, conn, hdl) {
+		var idx = inset.indexOf(key);
+		t.notStrictEqual(idx, -1);
+		inset.splice(idx, 1);
+		events.push(['removed', conn.backend]);
+		conn.seen = true;
+		hdl.release();
+	});
+
+	resolver.emit('added', 'b1', {});
+	resolver.emit('added', 'b2', {});
+	resolver.emit('added', 'b3', {});
+	resolver.emit('added', 'b4', {});
+
+	cset.cs_keys.sort();
+	t.deepEqual(cset.cs_keys, ['b1', 'b2', 'b3', 'b4']);
+
+	setImmediate(function () {
+		t.equal(connections.length, 2);
+		summarize();
+		t.deepEqual(counts, { 'b1': 1, 'b2': 1 });
+		t.equal(inset.length, 0);
+		index.b1[0].connect();
+		index.b2[0].connect();
+
+		setTimeout(function () {
+			t.equal(connections.length, 2);
+			t.equal(inset.length, 2);
+			summarize();
+			t.deepEqual(counts, { 'b1': 1, 'b2': 1 });
+
+			t.deepEqual(events, [
+				['added', 'b1'],
+				['added', 'b2']
+			]);
+			events = [];
+
+			var conn1 = index.b1[0];
+			var conn2 = index.b2[0];
+
+			cset.cs_keys.reverse();
+			cset.rebalance();
+
+			setTimeout(function () {
+				t.ok(conn1.dead);
+				t.ok(!conn2.dead);
+				t.ok(conn1.seen);
+				t.ok(!conn2.seen);
+
+				t.equal(inset.length, 1);
+				t.equal(connections.length, 3);
+				summarize();
+				t.deepEqual(counts,
+				    { 'b2': 1, 'b3': 1, 'b4': 1 });
+				t.deepEqual(events, [
+					['removed', 'b1']
+				]);
+				events = [];
+				index.b3[0].connect();
+				index.b4[0].connect();
+
+				setTimeout(function () {
+					t.equal(connections.length, 2);
+					t.equal(inset.length, 2);
+					summarize();
+					t.deepEqual(counts,
+					    { 'b3': 1, 'b4': 1 });
+					t.deepEqual(events, [
+						['added', 'b3'],
+						['added', 'b4'],
+						['removed', 'b2']
+					]);
+					t.ok(conn2.dead);
+					t.ok(conn2.seen);
+					cset.stop();
+					resolver.stop();
+				}, 1000);
+			}, 500);
+		}, 500);
+	});
+});
