@@ -318,7 +318,7 @@ mod_tape.test('error while claimed', function (t) {
 		t.equal(connections.length, 1);
 		connections[0].connect();
 
-		pool.claim(function (err, handle, conn) {
+		pool.claim(function errorWhileClaimed(err, handle, conn) {
 			t.strictEqual(conn, connections[0]);
 			conn.once('error', function () {
 				/* do nothing */
