@@ -6,6 +6,24 @@ toc::[]
 
 ## v2.x
 
+### v2.1.1
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #92 ConnectionSet emits 'removed' for connection it never 'added' -- this
+   release is now actually safe to use with Moray.
+ - #93 kang payload missing "options.domain" etc -- makes Kang snapshots a lot
+   easier to read
+ - #95, #79, #97 logging improvements, reduction of many ERROR level logs to
+   WARNINGS since applications may not treat a given cueball pool as fatal
+ - #96 crash in Pool#on_resolver_removed when FSM already stopped, happens most
+   easily in cases where there is nameserver "flapping"
+ - #94 ConnectionSet needs better protection against removing its last working
+   connection
+ - #98 test coverage for Kang monitor
+
 ### v2.1.0
 
 New minor release, due to relaxation of API requirements.
