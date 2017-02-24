@@ -545,25 +545,27 @@ The `delay` field indicates a time to wait between retry attempts. After each
 failure, it will be doubled until it exceeds the value of `maxDelay`.
 
 The possible fields in one operation are:
- - `retries` finite Number >= 0, number of retry attempts
- - `timeout` finite Number > 0, milliseconds to wait before declaring an
+
+ - `retries` -- finite Number >= 0, number of retry attempts
+ - `timeout` -- finite Number > 0, milliseconds to wait before declaring an
    attempt a failure
- - `maxTimeout` Number > `timeout` (can be `Infinity`), maximum value of
+ - `maxTimeout` -- Number > `timeout` (can be `Infinity`), maximum value of
    `timeout` to be reached with exponential timeout increase
- - `delay` finite Number >= 0, milliseconds to delay between retry attempts
- - `maxDelay` Number > `delay` (can be `Infinity`), maximum value of `delay`
+ - `delay` -- finite Number >= 0, milliseconds to delay between retry attempts
+ - `maxDelay` -- Number > `delay` (can be `Infinity`), maximum value of `delay`
    to be reached with exponential delay increase
 
 And the available operations:
- - `dns` (all DNS-related operations, lookups etc)
- - `dns_srv` (specifically lookups on SRV records, this is separate in case you
-   need to deal with certain old buggy DNS servers that have trouble with SRV)
- - `connect` (connections to backends in a `ConnectionPool`)
- - `initial` (the very first attempt to connect to a new backend, will fall
-   back to `connect` if not given)
+
+ - `dns` -- all DNS-related operations, lookups etc
+ - `dns_srv` -- specifically lookups on SRV records, this is separate in case
+   you need to deal with certain old buggy DNS servers that have trouble with
+   SRV)
+ - `connect` -- connections to backends in a `ConnectionPool`
+ - `initial` -- the very first attempt to connect to a new backend, will fall
+   back to `connect` if not given
 
 If a given operation has no specification given, it will use `default` instead.
-
 
 
 ## Dynamic Resolver mode
@@ -626,6 +628,7 @@ This is a more low-level API which is useful for implementing clients for
 protocols that are not as strictly connection-oriented.
 
 Key differences to ConnectionPool:
+
  - Each backend in a ConnectionSet has a maximum of 1 connection open to it
    (it's expected to be used with protocols that multiplex operations over a
    single socket.)
