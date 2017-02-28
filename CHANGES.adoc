@@ -6,6 +6,15 @@ toc::[]
 
 ## v2.x
 
+### v2.2.0
+
+New minor release, due to addition of new API.
+
+API changes:
+
+ - The `DNSResolver` class is now exported in the package root, as specified
+   in the documentation. It was mistakenly left out.
+
 ### v2.1.1
 
 Maintenance release.
