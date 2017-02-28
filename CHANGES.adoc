@@ -14,6 +14,9 @@ API changes:
 
  - The `DNSResolver` class is now exported in the package root, as specified
    in the documentation. It was mistakenly left out.
+ - Users of `ConnectionSet` can now supply the option `connectionHandlesError`
+   to avoid the need to add a no-op `"error"` handler when using a `constructor`
+   that already handles errors.
 
 ### v2.1.1
 

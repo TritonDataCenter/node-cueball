@@ -651,6 +651,11 @@ Parameters
                   Note that this number may temporarily be exceeded by 1 socket
                   to allow the set to re-balance.
    * `log` -- optional Object, a `bunyan`-style logger to use
+   * `connectionHandlesError` -- optional Boolean (default `false`). If `true`,
+                                 cueball assumes that the connection object (the
+                                 instance returned from `constructor`) handles
+                                 `"error"` events internally and the emission of
+                                 this event is for cueball's information only.
 
 ### `->added(key, connection, handle)`
 
