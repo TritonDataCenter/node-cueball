@@ -6,6 +6,15 @@ toc::[]
 
 ## v2.x
 
+### v2.2.1
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #102 HTTP Agent pinger hangs. HttpAgent's "ping" option has been broken
+   since 2.0.0.
+
 ### v2.2.0
 
 New minor release, due to addition of new API.

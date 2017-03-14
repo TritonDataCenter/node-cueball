@@ -627,9 +627,7 @@ mod_tape.test('pool ping checker', function (t) {
 			t.end();
 	});
 
-	function doCheck(err, hdl, conn) {
-		if (err)
-			return;
+	function doCheck(hdl, conn) {
 		conn.checked = true;
 		hdl.release();
 	}
