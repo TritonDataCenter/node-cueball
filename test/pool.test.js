@@ -650,7 +650,7 @@ mod_tape.test('pool ping checker', function (t) {
 			setTimeout(function () {
 				verifyCheck();
 				hdl.release();
-			}, 300);
+			}, 1000);
 		});
 
 		function verifyCheck() {
@@ -659,6 +659,59 @@ mod_tape.test('pool ping checker', function (t) {
 			});
 			cs.sort();
 			t.deepEqual(cs, [false, true]);
+
+			pool.stop();
+		}
+	});
+});
+
+mod_tape.test('pool ping checker no expand', function (t) {
+	connections = [];
+	resolver = undefined;
+
+	var pool = new mod_pool.ConnectionPool({
+		log: log,
+		domain: 'foobar',
+		spares: 2,
+		maximum: 10,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		checkTimeout: 100,
+		checker: doCheck,
+		recovery: recovery
+	});
+	t.ok(resolver);
+
+	pool.on('stateChanged', function (st) {
+		if (st === 'stopped')
+			t.end();
+	});
+
+	function doCheck(hdl, conn) {
+		conn.checked = true;
+		hdl.release();
+	}
+
+	resolver.emit('added', 'b1', {});
+	setImmediate(function () {
+		t.equal(connections.length, 2);
+		t.strictEqual(connections[0].backend, 'b1');
+		t.strictEqual(connections[1].backend, 'b1');
+
+		connections.forEach(function (c) {
+			t.strictEqual(c.refd, true);
+			c.connect();
+		});
+
+		setTimeout(verifyCheck, 300);
+
+		function verifyCheck() {
+			var cs = connections.map(function (c) {
+				return (c.checked);
+			});
+			cs.sort();
+			t.deepEqual(cs, [true, true]);
 
 			pool.stop();
 		}

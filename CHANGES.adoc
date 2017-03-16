@@ -14,6 +14,7 @@ Bugs fixed:
 
  - #102 HTTP Agent pinger hangs. HttpAgent's "ping" option has been broken
    since 2.0.0.
+ - #103 pinger running should not trigger creation of more connections
 
 ### v2.2.0
 
