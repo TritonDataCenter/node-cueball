@@ -6,6 +6,14 @@ toc::[]
 
 ## v2.x
 
+### v2.2.3
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #105 Agent pinger logs at INFO level on success. Much logs. Very noise.
+
 ### v2.2.2
 
  - Fix-up for 2.2.1 being broken (lib/agent.js missing)
