@@ -6,9 +6,15 @@ toc::[]
 
 ## v2.x
 
+### v2.2.2
+
+ - Fix-up for 2.2.1 being broken (lib/agent.js missing)
+
 ### v2.2.1
 
 Maintenance release.
+
+WARNING: This release is broken. Do not use it.
 
 Bugs fixed:
 

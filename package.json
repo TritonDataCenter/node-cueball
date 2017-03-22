@@ -1,6 +1,6 @@
 {
   "name": "cueball",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "manage a pool of connections to a multi-node service where nodes are listed in DNS",
   "main": "lib/index.js",
   "dependencies": {
