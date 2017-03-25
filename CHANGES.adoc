@@ -6,6 +6,16 @@ toc::[]
 
 ## v2.x
 
+### v2.2.4
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #106 want INFO logs when backends are shuffled into the top N for
+   pool/set, and when resolver adds/removes records (only after first
+   successful lookup)
+
 ### v2.2.3
 
 Maintenance release.
