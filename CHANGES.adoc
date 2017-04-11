@@ -6,6 +6,15 @@ toc::[]
 
 ## v2.x
 
+### v2.2.5
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #107 Bootstrap resolver not stopped when the last resolver using it
+   stops
+
 ### v2.2.4
 
 Maintenance release.
