@@ -6,6 +6,17 @@ toc::[]
 
 ## v2.x
 
+### v2.2.6
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #108 crash: unhandled smgr state transition -- issue which most commonly
+   happens due to HTTP requests that time out while stalled (buffers full)
+ - #109 Agent "health check ok" log msg needs domain name of pool (also adds
+   a bunch of other useful attributes to that log message)
+
 ### v2.2.5
 
 Maintenance release.
