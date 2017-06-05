@@ -823,10 +823,66 @@ mod_tape.test('cueball#108', function (t) {
 
 				function doFail() {
 					hdl.close();
-					setImmediate(function () {
-						conn.emit('close');
-						setTimeout(end, 100);
-					});
+					conn.emit('close');
+					setTimeout(end, 100);
+				}
+
+				function end() {
+					pool.stop();
+				}
+			});
+		}, 100);
+	});
+});
+
+mod_tape.test('cueball#111', function (t) {
+	connections = [];
+	resolver = undefined;
+
+	recovery.default.retries = 2;
+	var pool = new mod_pool.ConnectionPool({
+		log: log,
+		domain: 'foobar',
+		spares: 2,
+		maximum: 2,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery
+	});
+	t.ok(resolver);
+
+	pool.on('stateChanged', function (st) {
+		if (st === 'stopped') {
+			t.end();
+		}
+	});
+
+	resolver.emit('added', 'b1', {});
+	setImmediate(function () {
+		t.equal(connections.length, 2);
+		summarize();
+		t.deepEqual(counts, { 'b1': 2 });
+
+		index.b1[0].connect();
+		index.b1[1].connect();
+
+		setTimeout(function () {
+			t.ok(pool.isInState('running'));
+
+			t.equal(connections.length, 2);
+			summarize();
+			t.deepEqual(counts, { 'b1': 2 });
+
+			pool.claim(function (err, hdl, conn) {
+				t.ifError(err);
+
+				setTimeout(doFail, 100);
+
+				function doFail() {
+					hdl.close();
+					conn.emit('error', new Error('Foo'));
+					setTimeout(end, 100);
 				}
 
 				function end() {

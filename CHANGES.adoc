@@ -6,6 +6,15 @@ toc::[]
 
 ## v2.x
 
+### v2.2.7
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #111 smgr fixes in 2.2.6 forgot 'error' states -- possible crash resulting
+   from mistake in fix for #108
+
 ### v2.2.6
 
 Maintenance release.
