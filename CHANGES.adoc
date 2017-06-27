@@ -6,6 +6,16 @@ toc::[]
 
 ## v2.x
 
+### v2.2.8
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #113 spurious error handler leak warnings when using Agent. This is also
+   MANTA-3331 and MANTA-3204
+ - #114 cueball agent breaks HTTP Upgrade
+
 ### v2.2.7
 
 Maintenance release.
