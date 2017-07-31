@@ -13,7 +13,13 @@
 ### `new HttpAgent(options)`
 ### `new HttpsAgent(options)`
 
-Creates an HTTP(S) agent that can be used with the node `http` client API.
+Creates an HTTP(S) agent that can be used with the node `http` client API. The
+agent implicitly creates a ConnectionPool for each new hostname it encounters
+when processing requests.
+
+You can either pre-populate the set of pools by giving the `initialDomains`
+option, or simply make requests and the pools will be constructed at the first
+request for each host.
 
 Parameters
 
@@ -86,7 +92,8 @@ Pools begin their life in the "starting" state. Once they have successfully made
 one connection to any backend, they proceed to the "running" state. Otherwise,
 if their underlying Resolver enters the "failed" state, or they exhaust their
 retry policy attempting to connect to all their backends, they enter the
-"failed" state.
+"failed" state. Here they keep trying to connect to valid backends at their
+maximum backoff values, so as to be able to detect if a backend recovers.
 
 A "running" pool can then either be stopped by calling the `.stop()` method, at
 which point it enters the "stopping" state and begins tearing down its
@@ -543,6 +550,15 @@ seconds, 3 retries and initial delay of 100ms.
 
 The `delay` field indicates a time to wait between retry attempts. After each
 failure, it will be doubled until it exceeds the value of `maxDelay`.
+
+It is important to note that running out of `retries` does not cause an
+`'error`' event or thrown exception. Due to cueball's "monitor" behaviour, there
+is no real limit generally on the total number of times it will attempt to
+connect to a given backend. The `retries` value is used to know when to stop
+increasing backoff exponentially, when to declare a backend "dead", and when to
+declare a pool "failed", but none of these will cause cueball to stop attempts
+to reconnect to the backend unless you act to change it. The
+./internals.html[Cueball internals] document explains this in more detail.
 
 The possible fields in one operation are:
 
