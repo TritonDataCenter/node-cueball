@@ -20,6 +20,13 @@ API Changes:
    target claim timeouts to help with managing long, overloaded claim
    queues (#128)
 
+Bugs fixed:
+
+ - #116 timeout on SRV should avoid triggering fallback to A/AAAA -- this helps
+   to prevent "flapping" between A and SRV record lookups
+ - #115 handle REFUSED responses as name not known, which modern SDC binders
+   now produce for records outside of their area of authority
+
 ### v2.4.0
 
 New minor release, due to addition of new API.
