@@ -6,6 +6,18 @@ toc::[]
 
 ## v2.x
 
+### v2.2.9
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #118 slot should retain reference to previous claim handle (helps in
+   debugging some types of claimer misbehaviour)
+ - #112 docs improvements
+ - #119 bump min version of mooremachine to get timestamps (another debugging
+   aid, to see how long claims took to process)
+
 ### v2.2.8
 
 Maintenance release.

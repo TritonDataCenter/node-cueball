@@ -1,6 +1,6 @@
 {
   "name": "cueball",
-  "version": "2.2.8",
+  "version": "2.2.9",
   "description": "manage a pool of connections to a multi-node service where nodes are listed in DNS",
   "main": "lib/index.js",
   "dependencies": {
@@ -9,7 +9,7 @@
     "cmdutil": ">=1.0.0 <2.0.0",
     "extsprintf": ">=1.3.0 <2.0.0",
     "ipaddr.js": ">=1.1.0 <2.0.0",
-    "mooremachine": ">=2.1.0 <3.0.0",
+    "mooremachine": ">=2.2.0 <3.0.0",
     "mname-client": ">=0.5.0 <0.6.0",
     "uuid": ">=3.0.1 <4.0.0",
     "posix-getopt": ">=1.2.0 <2.0.0",
