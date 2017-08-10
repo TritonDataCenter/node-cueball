@@ -239,6 +239,119 @@ cleared out, calling their callbacks with errors.
 The pool will remain in the "failed" state until one of its "monitor" slots
 manages to connect to a backend again.
 
+### Coherence and decoherence
+
+In a large distributed system with many clients on different machines attempting
+to use the same logical service, a phenomenon we will refer to as "coherence"
+can emerge.
+
+For example, let us think about a situation where 5 clients all want to make 2
+connections to a logical service with 4 backends (A through D). Let's suppose
+all the backends are currently running, and each client picks 2 of the 4 at
+random. We might see the following distribution:
+
+.Initial state
+|===
+|          | Slot 1    | Slot 2
+
+| Client 1 | Backend A | Backend B
+
+| Client 2 | Backend C | Backend D
+
+| Client 3 | Backend C | Backend A
+
+| Client 4 | Backend B | Backend D
+
+| Client 5 | Backend A | Backend B
+
+|===
+
+This is fairly even loading (3 on A, 3 on B, 2 on C, 2 on D). But we may not
+produce such an even distribution in reality (the random number generator does
+not always produce such perfect results).
+
+The first kind of coherence that can occur is when the *initial* random choices
+of the whole group of clients result in them "ganging up" or concentrating their
+connections upon some subset of the available backends. We call this "static"
+coherence.
+
+There is a second kind of coherence which can occur as well: start by supposing
+that backend B goes offline. Using the mechanisms above, we retry until we
+exhaust our retry policy and mark backend B as dead on all clients. Then we
+seek a replacement for it from the remaining entries on our list of backends.
+Our final configuration might end up looking like this:
+
+.State after losing backend B
+|===
+|          | Slot 1    | Slot 2
+
+| Client 1 | Backend A | Backend D
+
+| Client 2 | Backend C | Backend D
+
+| Client 3 | Backend C | Backend A
+
+| Client 4 | Backend A | Backend D
+
+| Client 5 | Backend A | Backend D
+
+|===
+
+Now we have 4 on A, 2 on C and 3 on D. Backend A is no longer fairly loaded.
+Additionally, let us suppose backend B comes back online. Without the "monitor"
+mode we discussed above, a simplistic pool implementation would just continue
+to use this set of slots and have no connections made at all to backend B.
+
+If we restarted B as the first step in a "rolling restart" of all 4 backends,
+now what we will see is that the clients concentrate all their connections onto
+the exact backend we're about to restart next as we go around (because it's the
+backend that has been up and running the longest!). This means that we are
+guaranteed to produce the maximum possible disruption to these clients by doing
+such a rolling restart -- we would disrupt their workload for less time if we
+just restarted everything at once. This is clearly not a good result.
+
+These are both examples of the second kind of coherence: "dynamic" coherence,
+caused by the pool's reaction to changes in the environment (as opposed to being
+caused by its static configuration).
+
+As we've just observed, the slot monitor mode (discussed above) mitigates
+against the most common form of dynamic coherence -- the monitor slots will
+notice that backend B is back again, and the pools will change back to their
+original configuration, removing the coherence.
+
+The way this is implemented in cueball is by using a "preference list". This is
+a randomly ordered list of all the backends available in the logical service.
+Being higher up this list (closer to index 0) means that backend is "preferred"
+for being used by this pool. The pool will attempt to get to its configured
+number of slots by working its way down this list from most to least preferred
+(taking into account dead markings as it goes).
+
+To mitigate against static coherence, and the other more subtle kinds of dynamic
+coherence, cueball makes use of a "decoherence" or "shuffle" timer. This timer
+goes off every 60 seconds, and triggers the pool to take the least preferred
+backend on its preference list and inject it back into the list at a random
+higher index.
+
+This means that the probability that a given timer firing will change the active
+set of connections when there are N slots and M total backends is N/(M - 1)
+footnoteref:[,Since the decoherence timer's primary objective is protection
+against static coherence, it makes sense to have the expected time between it
+causing changes in the active set of slots go up as the number of logical
+backends in the service goes up -- with a larger number of logical backends
+available it is less likely for static coherence to occur as the probability of
+choosing the same small set from the larger set many times goes down. To our
+knowledge this does not make it less effective at guarding against the other
+kinds of dynamic coherence, such as during a partial outage, because these seem
+to have a similar property.]. Such a change is carried out by the rebalancer as
+part of its normal operation, by marking slots for the old backend as unwanted
+and creating new slots.
+
+Having this shuffling of preference lists take place periodically creates a
+maximum expected time bound on how long a coherence event can last -- when one
+does occur at random, the decoherence timer will eventually cause the clients to
+go their separate ways and it will not persist indefinitely. It also lowers the
+probability of severe coherence events occuring.
+
 ### ConnectionSet logical connections
 
 In the `ConnectionSet` implementation, there is one more additional FSM in use:
