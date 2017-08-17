@@ -61,6 +61,33 @@ held by the pool). The `stop()` method should be used on an Agent if your
 program does not plan to use it again and wishes to be able to exit node
 without calling `process.exit()`.
 
+### `#getPool([host])`
+
+Returns the connection pool this agent has created for the input host,
+or creates one if it doesn't already exist.
+
+Parameters
+
+- `host` -- hostname of the host for which the pool is being requested.
+
+### `#createPool(host, [options])`
+
+Creates and returns a connection pool for the host identified by the
+input host name if one doesn't already exist. You can either provide
+a resolver directly in the options parameter or have one allocated by
+cueball. If you provide a resolver, the Agent takes no responsibility
+for calling it's start() or stop() methods. The caller is responsible
+for doing so.
+
+Parameters
+
+- `host` -- hostname of the host for which the pool is being requested.
+- `options` -- an optional Object, with keys:
+    * `resolver` - Object satisfying the Resolver interface.
+
+Note: This function throws an error if a resolver for the provided host
+already exists.
+
 [[pool]]
 ## ConnectionPool
 
