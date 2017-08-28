@@ -226,6 +226,15 @@ emit `'error'`. If you do not register a handler for this event immediately
 at the start of your claim, and it emits, this will be treated as an uncaught
 error and cause the program to crash.
 
+### `#getLastError()`
+
+When the pool has entered state "failed", this method may be used to retrieve
+the last Error object emitted by a connection attempt in the pool. Note that
+while this is very likely to be a proximate cause of the pool failure,
+determining the root cause may require further analysis.
+
+Returns an Error object.
+
 ## Resolver
 
 ### About the interface
@@ -757,7 +766,14 @@ Parameters
 
 Returns all the currently open connections in the Set, as an Array.
 
+### `#getLastError()`
 
+When the set has entered state "failed", this method may be used to retrieve
+the last Error object emitted by a connection attempt for the set. Note that
+while this is very likely to be a proximate cause of the failure,
+determining the root cause may require further analysis.
+
+Returns an Error object.
 
 # Tools
 

@@ -6,6 +6,22 @@ toc::[]
 
 ## v2.x
 
+### v2.3.0
+
+New minor release, due to addition of new API.
+
+API changes:
+
+ - The `Agent` class now has methods `getPool()` and `createPool()`, which
+   enables inspection of its internal state, as well as injection of a custom
+   Resolver (#122, #124)
+ - Pools and Sets now have a new method `getLastError()` (#80)
+
+Bugs fixed:
+
+ - #123 ConnectionSet memory leak during failure
+ - #120 Documentation improvements
+
 ### v2.2.9
 
 Maintenance release.

@@ -515,11 +515,17 @@ mod_tape.test('cset connect-reject (#92)', function (t) {
 	});
 
 	cset.on('stateChanged', function (st) {
-		if (st === 'failed')
+		if (st === 'failed') {
+			var e = cset.getLastError();
+			t.notStrictEqual(e, undefined);
+			t.notStrictEqual(
+			    e.message.indexOf('Connection timed out'), -1);
 			cset.stop();
-		if (st === 'stopped') {
+		} else if (st === 'stopped') {
 			t.deepEqual(inset, []);
 			t.end();
+		} else if (st !== 'stopping') {
+			t.strictEqual(cset.getLastError(), undefined);
 		}
 	});
 

@@ -497,8 +497,8 @@ mod_tape.test('pool failure', function (t) {
 
 				t.equal(connections.length, 2);
 				summarize();
-				index.b1[0].emit('error', new Error());
-				index.b1[1].emit('error', new Error());
+				index.b1[0].emit('error', new Error('test'));
+				index.b1[1].emit('error', new Error('test'));
 
 				var sawErr = false;
 				pool.claim(function (err) {
@@ -511,6 +511,11 @@ mod_tape.test('pool failure', function (t) {
 				setTimeout(function () {
 					t.ok(pool.isInState('failed'));
 					t.ok(sawErr);
+					t.notStrictEqual(pool.getLastError(),
+					    undefined);
+					t.strictEqual(
+					    pool.getLastError().message,
+					    'test');
 
 					t.equal(connections.length, 1);
 					summarize();
@@ -565,9 +570,9 @@ mod_tape.test('pool failure / retry race', function (t) {
 		t.deepEqual(counts, { 'b1': 2 });
 
 		index.b1[0].connect();
-		index.b1[0].emit('error', new Error());
+		index.b1[0].emit('error', new Error('test'));
 		index.b1[1].connect();
-		index.b1[1].emit('error', new Error());
+		index.b1[1].emit('error', new Error('test'));
 
 		setTimeout(function () {
 			t.ok(pool.isInState('running'));
@@ -575,16 +580,17 @@ mod_tape.test('pool failure / retry race', function (t) {
 			t.equal(connections.length, 2);
 			summarize();
 			index.b1[1].connect();
-			index.b1[1].emit('error', new Error());
+			index.b1[1].emit('error', new Error('test'));
 			index.b1[0].connect();
-			index.b1[0].emit('error', new Error());
+			index.b1[0].emit('error', new Error('test'));
 
 			setTimeout(function () {
 				t.ok(pool.isInState('running'));
+				t.strictEqual(pool.getLastError(), undefined);
 
 				t.equal(connections.length, 2);
 				summarize();
-				index.b1[1].emit('error', new Error());
+				index.b1[1].emit('error', new Error('test2'));
 				index.b1[0].connect();
 
 				setTimeout(function () {
