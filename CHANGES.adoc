@@ -6,6 +6,15 @@ toc::[]
 
 ## v2.x
 
+### v2.4.0
+
+New minor release, due to addition of new API.
+
+API Changes:
+
+ - The `Agent` method `createPool()` now accepts a `port` option, as well as
+   various TLS-related options (#125)
+
 ### v2.3.0
 
 New minor release, due to addition of new API.

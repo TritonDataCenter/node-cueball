@@ -63,30 +63,36 @@ without calling `process.exit()`.
 
 ### `#getPool([host])`
 
-Returns the connection pool this agent has created for the input host,
-or creates one if it doesn't already exist.
+Returns the connection pool this agent has created for the input host. If no
+pool has yet been created, returns `undefined`.
 
 Parameters
 
-- `host` -- hostname of the host for which the pool is being requested.
+- `host` -- String, hostname of the host for which the pool is being requested.
 
 ### `#createPool(host, [options])`
 
-Creates and returns a connection pool for the host identified by the
-input host name if one doesn't already exist. You can either provide
-a resolver directly in the options parameter or have one allocated by
-cueball. If you provide a resolver, the Agent takes no responsibility
-for calling it's start() or stop() methods. The caller is responsible
-for doing so.
+Creates and returns a connection pool for the host identified by the input host
+name if one doesn't already exist. You can either provide a resolver directly in
+the options parameter or have one allocated by cueball (the behaviour matches
+`resolverForIpOrDomain()`). If you provide a resolver, the Agent takes no
+responsibility for calling its `start()` or `stop()` methods. The caller is
+responsible for doing so.
 
 Parameters
 
-- `host` -- hostname of the host for which the pool is being requested.
+- `host` -- String, hostname of the host for which a pool will be created.
 - `options` -- an optional Object, with keys:
-    * `resolver` - Object satisfying the Resolver interface.
+    * `resolver` -- optional Object satisfying the Resolver interface, the
+                    resolver to use for this pool. If given, `port` will be
+                    ignored.
+    * `port` -- optional Number, override the default port number used for
+                this pool (the Resolver can still override this).
+    * `rejectUnauthorized`, `pfx`, `key`, `passphrase`, `cert`, `ca`, `ciphers`,
+      `servername` -- TLS options, passed through to the TLS library.
 
-Note: This function throws an error if a resolver for the provided host
-already exists.
+NOTE: This function throws an error synchronously if a resolver for the
+provided host already exists, or if the Agent is stopped.
 
 [[pool]]
 ## ConnectionPool
