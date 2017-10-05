@@ -197,6 +197,34 @@ If long-term demand for connections from the pool remains high, the number of
 slots will be kept higher than usual rather than being reduced once connections
 are released.
 
+### Adaptive Queue Management
+
+If the pool consumer's load increases and the rate at which it tries to claim
+handles increases, or if the service the pool's connecting to slows down and
+the checkout times of handles increases, then a long queue of waiters can build
+up. Once the queue gets past a certain point, then the consumer may spend a long
+time processing old requests that might no longer be relevant.
+
+To combat this, the consumer can pass the `timeout` option when claiming
+connection handles, but this can be a blunt solution to the problem when the
+real goal is to shed load and avoid falling behind servicing old requests.
+
+Consumers can set `targetClaimDelay` when constructing the pool to set a target
+time for latency to claim accept/timeout. The pool will then use the
+https://queue.acm.org/appendices/codel.html[Controlled Delay algorithm] to
+determine whether the system is overloaded and failing to meet the latency
+constraint. When the system becomes overloaded, the pool will begin timing out
+requests as it dequeues them, in order to lower the waiter queue's length. Like
+the `timeout` option, Controlled Delay timeouts return a `ClaimTimeoutError`.
+
+Since handles can be held for a potentially very long period time, we impose a
+strict upper bound for idle time in the queue when the claim handle is created.
+By default, this is a value much higher than the target delay, since the goal
+is to allow the Controlled Delay algorithm to handle choosing which connections
+get dropped. If we fail to clear out the queue for a long period of time
+though, we start using a lower value, in order to move closer to the target
+delay.
+
 ### Error handling and monitor mode
 
 When a connection experiences an error, the pool may react in several ways,

@@ -166,6 +166,8 @@ Parameters
     running `checker` on a connection
   * `checker` -- optional Function(handle, connection), to be run on idle
     connections
+  * `targetClaimDelay` -- optional Number, a target time for latency to claim
+    accept/timeout, done through Adaptive Queue Management
   * `resolver` -- optional instance of an object meeting the Resolver interface
     below.  You would typically obtain this object by either creating your own
     Resolver directly or using the `resolverForIpOrDomain` function.

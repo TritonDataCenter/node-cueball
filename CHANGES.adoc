@@ -16,6 +16,9 @@ API Changes:
    of the Pool instance's counters along with four additional numbers:
    total connections, idle connections, partly-open connections, and the
    number of requests queued on available connections (#132)
+ - The `Pool` class has a new option, `targetClaimDelay`, to allow configuring
+   target claim timeouts to help with managing long, overloaded claim
+   queues (#128)
 
 ### v2.4.0
 
