@@ -899,6 +899,32 @@ mod_tape.test('cueball#111', function (t) {
 	});
 });
 
+mod_tape.test('cueball#132 getStats()', function (t) {
+	connections = [];
+	resolver = undefined;
+
+	recovery.default.retries = 2;
+	var pool = new mod_pool.ConnectionPool({
+		log: log,
+		domain: 'foobar',
+		spares: 2,
+		maximum: 2,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery
+	});
+	var s = pool.getStats();
+	t.equal(typeof (s), 'object');
+	t.equal(Object.keys(s).length, 5);
+	t.equal(typeof (s['counters']), 'object');
+	t.equal(s['totalConnections'], 0);
+	t.equal(s['idleConnections'], 0);
+	t.equal(s['pendingConnections'], 0);
+	t.equal(s['waiterCount'], 0);
+	t.end();
+});
+
 mod_tape.test('cleanup sandbox', function (t) {
 	sandbox.restore();
 	t.end();

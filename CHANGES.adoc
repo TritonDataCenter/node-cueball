@@ -6,6 +6,17 @@ toc::[]
 
 ## v2.x
 
+### v2.5.0
+
+New minor release, due to addition of new API.
+
+API Changes:
+
+ - The `Pool` class now has a method `getStats()`, which returns a snapshot
+   of the Pool instance's counters along with four additional numbers:
+   total connections, idle connections, partly-open connections, and the
+   number of requests queued on available connections (#132)
+
 ### v2.4.0
 
 New minor release, due to addition of new API.

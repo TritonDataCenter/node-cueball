@@ -3,7 +3,7 @@
 :doctype: book
 :idprefix:
 :docinfo:
-
+:listing-caption: "Example: "
 :sectnums:
 # API
 
@@ -240,6 +240,26 @@ while this is very likely to be a proximate cause of the pool failure,
 determining the root cause may require further analysis.
 
 Returns an Error object.
+
+### `#getStats()`
+
+Returns an object containing a snapshot of the current counters, along with
+with four additional numbers: total connections, idle connections, partly-open
+connections, and the number of requests queued waiting.
+
+.An object returned by #getStats()
+[source,js,caption="Example: "]
+-----------------------------------------------------------------------------
+{ counters:
+   { claim: 1,
+     'max-claim-queue': 1,
+     'queued-claim': 1 },
+  totalConnections: 1,
+  idleConnections: 1,
+  pendingConnections: 0,
+  waiterCount: 0
+}
+-----------------------------------------------------------------------------
 
 ## Resolver
 
