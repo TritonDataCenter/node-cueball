@@ -242,7 +242,15 @@ Parameters
   * `checker` -- optional Function(handle, connection), to be run on idle
     connections
   * `targetClaimDelay` -- optional Number, a target time for latency to claim
-    accept/timeout, done through Adaptive Queue Management
+    accept/timeout, done through Adaptive Queue Management; this option is
+    mutually exclusive with `queues`
+  * `queues` -- optional Array of Object, a specification of different queues
+    to place claims into, where each queue specification contains one of:
+    - `weight` -- Number, the weight this queue's checkout durations should have
+      relative to the others (two queues with a weight of 1 would hold handles
+      for an approximately equal amount of time)
+    - `targetClaimDelay` -- optional Number, the target claim latency for this
+      queue
   * `resolver` -- optional instance of an object meeting the Resolver interface
     below.  You would typically obtain this object by either creating your own
     Resolver directly or using the `resolverForIpOrDomain` function.
@@ -275,6 +283,9 @@ Claims a connection from the pool ready for use.
 Parameters
 
 - `options` -- optional Object, with keys:
+  * `queue` -- Number, if `queues` was provided when constructing the pool,
+    then this option must be passed in order to specify which of the queues
+    the claim should wait in
   * `timeout` -- optional Number, timeout for request in ms
     (default `Infinity`)
   * `errorOnEmpty` -- optional Boolean, if true return error straight away

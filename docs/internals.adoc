@@ -230,6 +230,20 @@ get dropped. If we fail to clear out the queue for a long period of time
 though, we start using a lower value, in order to move closer to the target
 delay.
 
+### Weighted Fair Queueing
+
+By default, all handle claims enter the same FIFO queue, and must wait on
+those claims that arrived earlier to first be handled. This may not always be
+desirable, though, since in a busy system some requests may have more importance
+than others, and should be treated with a higher quality of service.
+
+Cueball allows consumers to leverage
+https://en.wikipedia.org/wiki/Weighted_fair_queueing[weighted fair queueing] to
+create multiple queues for pending claims, and specify weights to assign each a
+proportional amount of handle checkout time. Each queue can also have its own
+`targetClaimDelay` so that requests to each queue can have different timeout
+characteristics.
+
 ### Error handling and monitor mode
 
 When a connection experiences an error, the pool may react in several ways,
