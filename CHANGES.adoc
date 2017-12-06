@@ -6,6 +6,16 @@ toc::[]
 
 ## v2.x
 
+### v2.5.1
+
+Urgent maintenance release: node-moray, a notable consumer, was broken
+by v2.5.0 (by depending on undocumented behaviour in the API)
+
+Bugs fixed:
+
+ - #134 fix for #116 broke node-moray (SRV timeouts no longer leading to
+   fallback to A/AAAA records)
+
 ### v2.5.0
 
 New minor release, due to addition of new API.
