@@ -32,6 +32,11 @@ Each process on each machine that provides the service is referred to as a
 "backend" for that logical service. A backend is uniquely identified within
 a given logical service by the tuple of network (IP) `address` and `port`.
 
+Note that for a group of backends to be part of the same logical service, it
+should be completely equivalent to connect to one of them as any other (i.e.
+there must be no requirement from the application to connect to some specific
+individual backend at any time).
+
 ### Connections
 
 In the `cueball` API, a "connection" is not necessarily a TCP socket. It can be

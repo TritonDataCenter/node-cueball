@@ -4,8 +4,83 @@
 :idprefix:
 :docinfo:
 :listing-caption: "Example: "
-:sectnums:
+# Concepts
+
+## Logical services and backends
+
+Many parts of `cueball` deal with the concept of a "logical service". This is
+a uniquely named entity (usually a DNS name) that is used to refer to a
+service offered to the network by potentially many processes running on many
+machines.
+
+For example, `(_dns._udp.)binder.staging-1.joyent.us` is a logical service that
+provides DNS (over UDP), under the unique name `binder.staging-1.joyent.us`.
+There may be only one physical machine providing this logical service, or there
+may be many, and on each physical machine there may be multiple processes
+providing it, or just one.
+
+Each process on each machine that provides the service is referred to as a
+"backend" for that logical service. A backend is uniquely identified within
+a given logical service by the tuple of network (IP) `address` and `port`.
+
+Note that for a group of backends to be part of the same logical service, it
+should be completely equivalent to connect to one of them as any other (i.e.
+there must be no requirement from the application to connect to some specific
+individual backend at any time).
+
+## Resolvers
+
+A "resolver" is the name we give to a component responsible for locating all of
+the backends available within a logical service, obtaining their IP address and
+port information (or whatever is required to connect to them) and tracking them.
+This is normally a service discovery client of some form -- e.g. `cueball`
+provides a default DNS-based Resolver which uses DNS SRV records as a form of
+service discovery mechanism to find backends.
+
+You can plug your own Resolver implementation into `cueball` to provide this
+mechanism, however, as long as it can track changes in the set of backends in a
+timely manner (it is expected to emit events only on changes, rather than
+periodic polling or refreshes).
+
+## Connections
+
+In `cueball`, a "connection" is not necessarily just a TCP socket. It can be
+any EventEmitter that provides some kind of logical connection to a given
+backend, as long as it obeys a similar interface to a socket.
+
+This is intended to allow users of the API to represent a "connection" as an
+application or session layer concept. For example, it could be useful to
+construct a pool of connections to an LDAP server that perform a bind
+operation (authenticate) before they are considered "connected".
+
+The user of the `cueball` API passes in a "constructor" function which, when
+called, must return a new connection object that has begun an attempt to
+connect. More details about this are included further into the API
+documentation.
+
+## Connection pools and sets
+
+The principal active components of `cueball` are connection Pools, and Sets.
+
+A connection Pool is a set of connections maintained to any subset of available
+backends for one single logical service. The connections are handed out to users
+of the pool in a temporary lease, then later returned to the pool for re-use.
+A single connection is never given out concurrently to more than one user of
+the pool. This paradigm is ideal for many common protocols such as HTTP, LDAP,
+database connections etc.
+
+A connection Set is the same concept as a connection Pool, but with the ability
+for a single connection to be used by more than one user at the same time. It
+is designed for use with services that multiplex operations onto a single socket
+or which are not as strictly connection-oriented and ordered.
+
+## Further information
+
+More detailed exploration of these concepts and the design of `cueball` can be
+found in the link:./internals.html[Cueball internals] document.
+
 # API
+:sectnums:
 
 [[agent]]
 ## HttpAgent, HttpsAgent
@@ -622,7 +697,7 @@ connect to a given backend. The `retries` value is used to know when to stop
 increasing backoff exponentially, when to declare a backend "dead", and when to
 declare a pool "failed", but none of these will cause cueball to stop attempts
 to reconnect to the backend unless you act to change it. The
-./internals.html[Cueball internals] document explains this in more detail.
+link:./internals.html[Cueball internals] document explains this in more detail.
 
 The possible fields in one operation are:
 
@@ -715,6 +790,15 @@ Key differences to ConnectionPool:
  - No support for leases (claim/release). ConnectionSet does not track whether
    connections are busy or not, and expects its consumer to manage this.
 
+Note that neither ConnectionSet nor ConnectionPool are suited or designed for
+use with sets of distinct backends that are not for a single logical service.
+All of the backends returned by your resolver should always be equivalent and
+interchangeable, no matter which interface you use.
+
+The only reason you should be using a ConnectionSet is if you really wanted a
+ConnectionPool, but your service multiplexes operations over a single socket
+or isn't strictly connection-oriented.
+
 ConnectionSets have an identical state graph to ConnectionPools.
 
 ### `new ConnectionSet(options)`
@@ -743,14 +827,19 @@ Emitted when a new connection becomes available in the set. This event *must*
 have a handler on it at all times.
 
 The `handle` that is given as the third argument to this event has two methods
-`.release()` and `.close()`, like a Pool handle. As with Pool handles, it can
-be used to indicate the failure of a connection (e.g. due to a protocol error
-making safe use of the connection impossible) at any time, but unlike a Pool
-handle, it is an error to call `.release()` until after a `'removed'` event
-has been emitted.
+`.release()` and `.close()`, like a Pool handle. As with Pool handles, the
+`.close()` method can be used to indicate an otherwise undetectable failure of a
+connection (e.g. due to a protocol error making safe use of the connection
+impossible) at any time, but unlike a Pool handle, it is an error to call
+`.release()` until after a `'removed'` event has been emitted.
 
 The user of the ConnectionSet should store both the `connection` and `handle`
-in such a way as to be able to retrieve them using the `key`.
+in such a way as to be able to retrieve them using the `key` (so they can
+handle any related `'removed'` event later).
+
+If the `.close()` method is called on a Set handle, no `'removed'` event will
+be emitted about this connection. It is the caller's responsibility to clean
+up any remaining state on its side.
 
 Parameters
 
