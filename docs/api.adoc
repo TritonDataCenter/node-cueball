@@ -562,7 +562,17 @@ var resolver = mod_cueball.resolverForIpOrDomain({
 In these examples, the `input` string is assumed to come from a user
 cueball does the expected thing when given an IP address or DNS name.
 
+### `DNSResolver.getBootstrapResolver([host])`
 
+Returns the `DNSResolver` created for the input host when
+`resolverForIpOrDomain` is used to create a bootstrap resolver, i.e. a
+resolver for the DNS service itself. If no resolver has yet been created,
+returns `undefined`.
+
+Parameters
+
+- `host` -- String, hostname of the host for which the resolver is being
+requested.
 
 ## Connection interface
 
