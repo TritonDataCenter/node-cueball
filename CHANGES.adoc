@@ -6,6 +6,10 @@ toc::[]
 
 ## v2.x
 
+### v2.5.2
+
+Fix bug in pool statistics gathering (#140).
+
 ### v2.5.1
 
 Urgent maintenance release: node-moray, a notable consumer, was broken
