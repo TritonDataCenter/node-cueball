@@ -900,6 +900,8 @@ mod_tape.test('cueball#111', function (t) {
 });
 
 mod_tape.test('cueball#132 getStats()', function (t) {
+	var s = null;
+
 	connections = [];
 	resolver = undefined;
 
@@ -914,7 +916,16 @@ mod_tape.test('cueball#132 getStats()', function (t) {
 		},
 		recovery: recovery
 	});
-	var s = pool.getStats();
+	t.ok(resolver);
+
+	pool.on('stateChanged', function (st) {
+		if (st === 'stopped') {
+			t.end();
+		}
+	});
+
+	s = pool.getStats();
+
 	t.equal(typeof (s), 'object');
 	t.equal(Object.keys(s).length, 5);
 	t.equal(typeof (s['counters']), 'object');
@@ -922,7 +933,36 @@ mod_tape.test('cueball#132 getStats()', function (t) {
 	t.equal(s['idleConnections'], 0);
 	t.equal(s['pendingConnections'], 0);
 	t.equal(s['waiterCount'], 0);
-	t.end();
+
+	resolver.emit('added', 'b1', {});
+	setImmediate(function () {
+		t.equal(connections.length, 2);
+		summarize();
+		t.deepEqual(counts, { 'b1': 2 });
+
+		index.b1[0].connect();
+		index.b1[1].connect();
+
+		setTimeout(function () {
+			t.ok(pool.isInState('running'));
+
+			t.equal(connections.length, 2);
+			summarize();
+			t.deepEqual(counts, { 'b1': 2 });
+
+			s = pool.getStats();
+
+			t.equal(typeof (s), 'object');
+			t.equal(Object.keys(s).length, 5);
+			t.equal(typeof (s['counters']), 'object');
+			t.equal(s['totalConnections'], 2);
+			t.equal(s['idleConnections'], 2);
+			t.equal(s['pendingConnections'], 0);
+			t.equal(s['waiterCount'], 0);
+
+			pool.stop();
+		}, 100);
+	});
 });
 
 mod_tape.test('cleanup sandbox', function (t) {
