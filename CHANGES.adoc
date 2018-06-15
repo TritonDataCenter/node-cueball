@@ -6,6 +6,14 @@ toc::[]
 
 ## v2.x
 
+### v2.5.3
+
+Maintenance release.
+
+Bugs fixed:
+
+ - #138 added `isStopped()` method to `Agent`.
+
 ### v2.5.2
 
 Maintenance release.

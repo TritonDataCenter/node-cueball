@@ -73,8 +73,11 @@ mod_tape.test('basic agent usage, fixed ip', function (t) {
 			agent.createPool('127.0.0.1', {});
 		});
 
+		t.notOk(agent.isStopped());
+
 		agent.stop(function () {
 			t.ok(pool.isInState('stopped'));
+			t.ok(agent.isStopped());
 			t.end();
 		});
 	});

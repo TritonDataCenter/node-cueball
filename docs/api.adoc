@@ -136,6 +136,11 @@ held by the pool). The `stop()` method should be used on an Agent if your
 program does not plan to use it again and wishes to be able to exit node
 without calling `process.exit()`.
 
+### `#isStopped()`
+
+Boolean, is this Agent stopped?. Useful to prevent exceptions being thrown
+when calling `stop()` more than once.
+
 ### `#getPool([host])`
 
 Returns the connection pool this agent has created for the input host. If no
