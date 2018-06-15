@@ -113,7 +113,8 @@ var pool = new mod_cueball.ConnectionPool({
             delay: 250,
             maxDelay: 1000
         }
-    }
+    },
+    collector: collector
 });
 
 pool.claim(function (err, hdl, client) {
@@ -136,7 +137,9 @@ pool.claim(function (err, hdl, client) {
 
 This will create a pool of pre-authenticated LDAP connections ready for use in
 your application. Once you call `hdl.release()` to tell `cueball` you're done
-with the connection, it goes back to the pool ready to be re-used.
+with the connection, it goes back to the pool ready to be re-used. Optionally,
+the caller can supply an artedi collector for tracking failures within cueball,
+however it is not mandatory.
 
 Note that `cueball` also automatically uses DNS `SRV` records if available to
 locate your LDAP servers.
