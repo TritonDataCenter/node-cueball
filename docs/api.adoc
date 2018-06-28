@@ -248,6 +248,10 @@ Parameters
     connections
   * `targetClaimDelay` -- optional Number, a target time for latency to claim
     accept/timeout, done through Adaptive Queue Management
+  * `decoherenceInterval` -- optional Number, seconds between re-shuffles of
+    the backend preference list to try to avoid "coherence" between multiple
+    clients (see the Cueball Internals document for more information). Minimum
+    value of 60 (smaller values will be clamped to 60 seconds).
   * `resolver` -- optional instance of an object meeting the Resolver interface
     below.  You would typically obtain this object by either creating your own
     Resolver directly or using the `resolverForIpOrDomain` function.
