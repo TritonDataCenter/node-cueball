@@ -6,6 +6,17 @@ toc::[]
 
 ## v2.x
 
+### v2.7.0
+
+New minor release, due to addition of new API. The v2.6.0 release was
+mistakenly published with only the `Pool` part of the API change.
+
+API changes:
+
+ - The `Pool` and `Set` classes now both accept a new constructor option --
+   `decoherenceInterval` which allows increasing the interval of the
+   decoherence/shuffle timer.
+
 ### v2.5.3
 
 Maintenance release.

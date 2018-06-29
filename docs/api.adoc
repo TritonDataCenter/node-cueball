@@ -823,6 +823,10 @@ Parameters
    * `maximum` -- Number, maximum number of sockets opened by the set.
                   Note that this number may temporarily be exceeded by 1 socket
                   to allow the set to re-balance.
+   * `decoherenceInterval` -- optional Number, seconds between re-shuffles of
+     the backend preference list to try to avoid "coherence" between multiple
+     clients (see the Cueball Internals document for more information). Minimum
+     value of 60 (smaller values will be clamped to 60 seconds).
    * `log` -- optional Object, a `bunyan`-style logger to use
    * `connectionHandlesError` -- optional Boolean (default `false`). If `true`,
                                  cueball assumes that the connection object (the
