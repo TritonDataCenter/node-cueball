@@ -965,6 +965,80 @@ mod_tape.test('cueball#132 getStats()', function (t) {
 	});
 });
 
+mod_tape.test('backend failure/removal race (#144)', function (t) {
+	connections = [];
+	resolver = undefined;
+
+	var timer;
+	recovery.default.retries = 2;
+	var pool = new mod_pool.ConnectionPool({
+		log: log,
+		domain: 'foobar',
+		spares: 2,
+		maximum: 2,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery
+	});
+	t.ok(resolver);
+
+	pool.on('stateChanged', function (st) {
+		if (st === 'stopped') {
+			if (timer !== undefined)
+				clearTimeout(timer);
+			t.end();
+		}
+	});
+
+	resolver.emit('added', 'b1', {});
+	resolver.emit('added', 'b2', {});
+	setImmediate(function () {
+		t.equal(connections.length, 2);
+		summarize();
+		t.deepEqual(counts, { 'b1': 1, 'b2': 1 });
+
+		index.b1[0].connect();
+		index.b2[0].connect();
+
+		setTimeout(function () {
+			t.ok(pool.isInState('running'));
+
+			t.equal(connections.length, 2);
+			summarize();
+			index.b1[0].emit('error', new Error('test'));
+			index.b2[0].emit('error', new Error('test'));
+
+			setTimeout(function () {
+				t.ok(pool.isInState('running'));
+				t.strictEqual(pool.getLastError(), undefined);
+
+				t.equal(connections.length, 2);
+				summarize();
+
+				resolver.emit('removed', 'b2');
+
+				index.b1[0].emit('error', new Error('test2'));
+				index.b2[0].emit('error', new Error('test2'));
+
+				setTimeout(function () {
+					t.ok(pool.isInState('failed'));
+
+					t.deepEqual(pool.p_keys, ['b1']);
+					t.deepEqual(pool.p_dead,
+					    { 'b1': true });
+
+					pool.stop();
+					/* Stop tape from giving up. */
+					timer = setTimeout(function () {},
+					    5000);
+				}, 100);
+			}, 100);
+		}, 100);
+	});
+});
+
+
 mod_tape.test('cleanup sandbox', function (t) {
 	sandbox.restore();
 	t.end();
