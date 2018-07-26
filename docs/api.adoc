@@ -255,6 +255,10 @@ Parameters
   * `resolver` -- optional instance of an object meeting the Resolver interface
     below.  You would typically obtain this object by either creating your own
     Resolver directly or using the `resolverForIpOrDomain` function.
+  * `maxChurnRate` -- optional Number, maximum rate in connections per second
+    to limit connection churn to on a per-backend basis. If set, cueball will
+    never create or destroy connections to a given backend at a higher rate
+    than the one given.
 
 Do not confuse `resolvers` (the list of IP addresses for the DNS resolvers to
 contact) with `resolver` (a custom object meeting the Resolver interface below).

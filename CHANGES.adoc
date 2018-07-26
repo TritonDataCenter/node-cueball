@@ -6,6 +6,15 @@ toc::[]
 
 ## v2.x
 
+### v2.8.0
+
+New minor release, due to addition of new API.
+
+API Changes:
+
+ - The `Pool` constructor now accepts a new option, `maxChurnRate` to constrain
+   the maximum per-backend connection churn rate of the pool.
+
 ### v2.7.1
 
 Maintenance release.

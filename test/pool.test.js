@@ -1038,6 +1038,87 @@ mod_tape.test('backend failure/removal race (#144)', function (t) {
 	});
 });
 
+mod_tape.test('pool with churn rate limit', function (t) {
+	connections = [];
+	resolver = undefined;
+	var timer;
+
+	var pool = new mod_pool.ConnectionPool({
+		log: log,
+		domain: 'foobar',
+		spares: 4,
+		maximum: 4,
+		maxChurnRate: 4.0,
+		constructor: function (backend) {
+			return (new DummyConnection(backend));
+		},
+		recovery: recovery
+	});
+	t.ok(resolver);
+
+	pool.on('stateChanged', function (st) {
+		if (st === 'stopped') {
+			if (timer !== undefined)
+				clearTimeout(timer);
+			t.end();
+		}
+	});
+
+	resolver.emit('added', 'b1', {});
+	setImmediate(function () {
+		t.equal(connections.length, 1);
+		t.strictEqual(connections[0].backend, 'b1');
+		connections[0].connect();
+
+		setTimeout(function () {
+			t.equal(connections.length, 2);
+			summarize();
+			t.deepEqual(counts, { 'b1': 2 });
+			connections[1].connect();
+		}, 250+100);
+
+		setTimeout(function () {
+			t.equal(connections.length, 3);
+			summarize();
+			t.deepEqual(counts, { 'b1': 3 });
+			connections[2].connect();
+		}, 500+100);
+
+		setTimeout(function () {
+			t.equal(connections.length, 4);
+			summarize();
+			t.deepEqual(counts, { 'b1': 4 });
+			connections[3].connect();
+
+			resolver.emit('added', 'b2', {});
+		}, 750+100);
+
+		setTimeout(function () {
+			t.equal(connections.length, 4);
+			summarize();
+			t.deepEqual(counts, { 'b1': 4 });
+		}, 800+100);
+
+		setTimeout(function () {
+			t.equal(connections.length, 3);
+			summarize();
+			t.deepEqual(counts, { 'b1': 2, 'b2': 1 });
+			index.b2[0].connect();
+		}, 1000+100);
+
+		setTimeout(function () {
+			t.equal(connections.length, 4);
+			summarize();
+			t.deepEqual(counts, { 'b1': 2, 'b2': 2 });
+			index.b2[1].connect();
+
+			pool.stop();
+			/* Stop tape from giving up. */
+			timer = setTimeout(function () {},
+			    5000);
+		}, 1250+100);
+	});
+});
 
 mod_tape.test('cleanup sandbox', function (t) {
 	sandbox.restore();
