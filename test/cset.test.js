@@ -62,6 +62,7 @@ function DummyConnection(backend) {
 	this.refd = true;
 	this.connected = false;
 	this.dead = false;
+	this.unwanted = false;
 	mod_events.EventEmitter.call(this);
 }
 mod_util.inherits(DummyConnection, mod_events.EventEmitter);
@@ -86,6 +87,10 @@ DummyConnection.prototype.destroy = function () {
 	this.connected = false;
 	this.dead = true;
 	this.emit('close');
+};
+DummyConnection.prototype.setUnwanted = function () {
+	this.unwanted = true;
+	this.emit('unwanted');
 };
 
 mod_tape.test('cset with one backend', function (t) {
@@ -114,6 +119,7 @@ mod_tape.test('cset with one backend', function (t) {
 		if (connections.length > 1) {
 			t.fail('more than 2 connections');
 		}
+		t.ok(!connections[0].unwanted);
 		if (connections.length === 1) {
 			setImmediate(function () {
 				cset.stop();
@@ -327,6 +333,13 @@ mod_tape.test('removing a backend', function (t) {
 			var conn = index.b2[0];
 			var conn2 = index.b3[0];
 
+			t.ok(!conn2.unwanted);
+			var unwantedDuringConnect = false;
+			conn2.on('unwanted', function () {
+				if (!conn2.connected && !conn2.dead)
+					unwantedDuringConnect = true;
+			});
+
 			resolver.emit('removed', 'b2');
 			resolver.emit('removed', 'b3');
 
@@ -335,6 +348,8 @@ mod_tape.test('removing a backend', function (t) {
 				t.ok(conn2.dead);
 				t.ok(conn.seen);
 				t.ok(!conn2.seen);
+				t.ok(conn2.unwanted);
+				t.ok(unwantedDuringConnect);
 				t.equal(connections.length, 1);
 				summarize();
 				t.deepEqual(counts, { 'b1': 1 });

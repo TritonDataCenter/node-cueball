@@ -632,7 +632,17 @@ argument.
 May also be emitted as `connectTimeout` only in the state before `connect` has
 been emitted.
 
+### `->setUnwanted()`
 
+As an optional feature, connections that are still connecting to their assigned
+backend may implement this function to detect that they have become "unwanted"
+by cueball (e.g. because a primary backend as returned while they were starting
+to connect). A connection that is unwanted will be closed immediately after
+it has emitted its next event, regardless of whether the connection succeeds.
+
+If your connection type has multiple phases of set-up before emitting `connect`
+(e.g. an authentication step), this may be useful to avoid doing unnecessary
+extra work in the case where the connection would be discarded anyway.
 
 ## Errors
 

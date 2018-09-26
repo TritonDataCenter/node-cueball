@@ -6,6 +6,20 @@ toc::[]
 
 ## v2.x
 
+### v2.9.0
+
+New minor release, due to addition of new API.
+
+API Changes:
+
+ - The connection interface now has a new optional function it can implement,
+   `setUnwanted()` which allows for optimising behaviour for connection types
+   that do extra work before emitting `connect` (e.g. authentication)
+
+Bugs fixed:
+
+ - #148 cset with n=1 holds onto dead connections
+
 ### v2.8.0
 
 New minor release, due to addition of new API.
