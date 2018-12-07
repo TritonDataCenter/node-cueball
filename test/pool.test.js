@@ -12,6 +12,7 @@ const mod_events = require('events');
 const mod_util = require('util');
 const mod_assert = require('assert-plus');
 const mod_bunyan = require('bunyan');
+const mod_verror = require('verror');
 
 const mod_pool = require('../lib/pool');
 const mod_resolver = require('../lib/resolver');
@@ -513,9 +514,8 @@ mod_tape.test('pool failure', function (t) {
 					t.ok(sawErr);
 					t.notStrictEqual(pool.getLastError(),
 					    undefined);
-					t.strictEqual(
-					    pool.getLastError().message,
-					    'test');
+					t.ok(/ test$/.test(
+					    pool.getLastError().message));
 
 					t.equal(connections.length, 1);
 					summarize();
