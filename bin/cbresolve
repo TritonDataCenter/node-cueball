@@ -16,6 +16,8 @@ const mod_getopt = require('posix-getopt');
 const mod_net = require('net');
 const mod_verror = require('verror');
 const mod_util = require('util');
+const mod_restify = require('restify');
+const mod_kang = require('kang');
 
 const VError = mod_verror.VError;
 const printf = mod_extsprintf.printf;
@@ -31,7 +33,7 @@ var cbrResolver;
 function main()
 {
 	var optstr, parser, option, args;
-	var timeout, resolverConf;
+	var timeout, resolverConf, kangPort;
 
 	resolverConf = {};
 	timeout = 5000;
@@ -53,6 +55,7 @@ function main()
 		'    -r, --resolvers IP[,IP...]  list of DNS resolvers',
 		'    -s, --service SERVICE       "service" name (for SRV)',
 		'    -t, --timeout TIMEOUT       timeout for lookups',
+		'    -k, --kang-port PORT        start kang listener',
 		''
 	    ].join('\n')
 	});
@@ -75,7 +78,8 @@ function main()
 	    'p:(port)',
 	    'r:(resolvers)',
 	    's:(service)',
-	    't:(timeout)'
+	    't:(timeout)',
+	    'k:(kang-port)'
 	].join('');
 	parser = new mod_getopt.BasicParser(optstr, process.argv);
 	while ((option = parser.getopt()) !== undefined) {
@@ -121,6 +125,15 @@ function main()
 			timeout = parseTimeInterval(option.optarg);
 			if (timeout instanceof Error) {
 				mod_cmdutil.usage(timeout);
+			}
+			break;
+
+		case 'k':
+			kangPort = parseInt(option.optarg, 10);
+			if (isNaN(kangPort) || kangPort < 0 ||
+			    kangPort > 65535) {
+				mod_cmdutil.usage('bad value for -k/' +
+				    '--kang-port: %s', option.optarg);
 			}
 			break;
 
@@ -232,6 +245,26 @@ function main()
 		 * MDN documentation.
 		 */
 		setInterval(function () {}, Math.pow(2, 31) - 1);
+	}
+
+	if (kangPort) {
+		var kangOpts = mod_cueball.poolMonitor.toKangOptions();
+		kangOpts.log = cbrLog;
+		kangOpts.port = kangPort;
+
+		var kangServer = mod_restify.createServer({
+			serverName: 'Kang',
+			handleUncaughtExceptions: false
+		});
+		kangServer.get(new RegExp('.*'),
+		    mod_kang.knRestifyHandler(kangOpts));
+		kangServer.listen(kangOpts.port, '127.0.0.1', function () {
+			cbrLog.info('cueball kang monitor started on port %d',
+			    kangOpts.port);
+		});
+		kangServer.on('after', mod_restify.auditLogger({
+			log: cbrLog
+		}));
 	}
 }
 

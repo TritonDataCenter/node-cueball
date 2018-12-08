@@ -146,9 +146,10 @@ mod_tape.test('empty kang info', function (t) {
 	client.get('/kang/snapshot', function (err, req, res, obj) {
 		t.ifError(err);
 		t.strictEqual(obj.service.name, 'cueball');
-		t.deepEqual(obj.types, ['pool', 'set']);
+		t.deepEqual(obj.types, ['pool', 'set', 'dns_res']);
 		t.deepEqual(Object.keys(obj.pool), []);
 		t.deepEqual(Object.keys(obj.set), []);
+		t.deepEqual(Object.keys(obj.dns_res), []);
 		t.end();
 	});
 });
