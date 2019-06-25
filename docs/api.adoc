@@ -732,6 +732,9 @@ The possible fields in one operation are:
  - `delay` -- finite Number >= 0, milliseconds to delay between retry attempts
  - `maxDelay` -- Number > `delay` (can be `Infinity`), maximum value of `delay`
    to be reached with exponential delay increase
+ - `delaySpread` -- finite Number between `0.0` and `1.0`, the fraction of
+   the current `delay` value that should be randomly varied. If not given,
+   defaults to `0.2`
 
 And the available operations:
 

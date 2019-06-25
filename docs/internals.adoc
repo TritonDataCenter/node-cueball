@@ -385,6 +385,24 @@ does occur at random, the decoherence timer will eventually cause the clients to
 go their separate ways and it will not persist indefinitely. It also lowers the
 probability of severe coherence events occuring.
 
+### Time correlation of retries
+
+With a large number of clients being managed together (as is often the case in
+large deployments), the clients may all be started and stopped at fairly
+similar times. This means that if they all encounter an error due to the same
+underlying cause and begin the process of exponential backoff and retries, they
+will all be performing these steps fairly close to each other in time.
+
+This can cause problems especially in the face of a transient overload, where
+a backend service comes up after failure and would be able to serve the workload
+if the set of clients connected one by one, but instead a large number of
+clients connect all at once and overload it, leading to it going down again.
+
+Cueball attempts to mitigate this kind of time correlation between clients
+by adding a random "spread" factor to retry delays. This is given as a fraction
+of the average delay amount (e.g. a spread of `0.2` means 20%, or a real
+delay ranging from 90% to 110% of the average value).
+
 ### ConnectionSet logical connections
 
 In the `ConnectionSet` implementation, there is one more additional FSM in use:
@@ -487,7 +505,8 @@ The simplest possible recovery object is shown below (<<recovery-simple>>).
 	"default": {
 		"retries": 3,
 		"timeout": 1000,
-		"delay": 100
+		"delay": 100,
+		"delaySpread": 0.2
 	}
 }
 ------------------------------------------------------------------------------
@@ -502,7 +521,7 @@ policy will be used instead.
 
 In the case of the simple example above, all actions taken by `cueball` would
 have a limit of 3 retries, an initial timeout of 1 second (1000 ms), and an
-initial delay between retries of 100 ms.
+initial delay between retries of 100 ms (plus/minus spread).
 
 Specifying 3 retries means that there will be a total of 3 attempts made before
 declaring failure, with increasing timeout and delay: see <<attempts-simple>>.
@@ -512,14 +531,19 @@ declaring failure, with increasing timeout and delay: see <<attempts-simple>>.
 [width="85%",options="header"]
 |=============================================================================
 | Attempt # | Timeout (ms)   | Delay before next attempt (ms)
-| 1         | 1000           | 100
-| 2         | 2000           | 200
-| 3         | 4000           | 400
+| 1         | 1000           | 100 +/- 10
+| 2         | 2000           | 200 +/- 20
+| 3         | 4000           | 400 +/- 40
 |=============================================================================
 
 Assuming that all these attempts failed due to timeout, this would mean that
-attempt #1 took place at `t = 0`, attempt #2 at `t = 1100`, #3 at `t = 3300`
-and finally, the operation would be declared a failure at `t = 7700`.
+attempt #1 took place at `t = 0`, attempt #2 at `t = 1100` (ignoring spread),
+#3 at `t = 3300` and finally, the operation would be declared a failure at
+`t = 7700`.
+
+Including random spread, attempt #2 would take place between `t = 1090` and
+`t = 1110`, attempt #3 between `t = 3270` and `t = 3330`, and the final
+declaration of failure between `t = 7630` and `t = 7770`.
 
 The recovery mode slot that will be created following such a failure would
 be initialized with infinite retries and the timeout and delay from the very
