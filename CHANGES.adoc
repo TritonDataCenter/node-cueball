@@ -6,6 +6,23 @@ toc::[]
 
 ## v2.x
 
+### v2.10.0
+
+New minor release, due to addition of new API.
+
+API changes:
+
+ - Recovery objects now accept an optional property `delaySpread`, to control
+   the magnitude of randomization applied to `delay`
+ - DNS resolver-related stats counters have been added to the kang endpoints.
+
+Bugs fixed:
+
+ - #151 DNS resolver no longer falls back to 60 second retries in error cases
+   if it has previously seen a valid TTL.
+ - #150 Many cueball errors are now VError subclasses, with improved error
+   messages and chaining back to their original cause.
+
 ### v2.9.0
 
 New minor release, due to addition of new API.
