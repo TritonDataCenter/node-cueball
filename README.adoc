@@ -30,10 +30,6 @@ npm install cueball
 
 MPL-v2
 
-## Contributing
-
-Contributions should be made via the https://cr.joyent.us[Joyent Gerrit].
-
 ## Usage examples
 
 ### HTTP with node http.js or `restify`
