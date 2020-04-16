@@ -1,10 +1,10 @@
 {
   "name": "cueball",
-  "version": "2.10.0",
+  "version": "2.10.1",
   "description": "manage a pool of connections to a multi-node service where nodes are listed in DNS",
   "main": "lib/index.js",
   "dependencies": {
-    "artedi": "1.3.0",
+    "artedi": "~2.0.2",
     "assert-plus": ">=1.0.0 <2.0.0",
     "bunyan": ">=1.5.1 <2.0.0",
     "cmdutil": ">=1.0.0 <2.0.0",
