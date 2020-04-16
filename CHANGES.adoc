@@ -6,6 +6,14 @@ toc::[]
 
 ## v2.x
 
+### v2.10.1
+
+Maintenance release.
+
+Bugs fixed:
+
+ - MANTA-5189 Bump artedi dep from 1.x to 2.x.
+
 ### v2.10.0
 
 New minor release, due to addition of new API.
