@@ -6,6 +6,14 @@ toc::[]
 
 ## v2.x
 
+### v2.10.2
+
+Maintenance release.
+
+Bugs fixed:
+
+ - MANTA-5299 cueball should ease off on the SRV requests
+
 ### v2.10.1
 
 Maintenance release.
