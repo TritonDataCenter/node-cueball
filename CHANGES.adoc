@@ -6,6 +6,10 @@ toc::[]
 
 ## v2.x
 
+### v2.10.3
+
+Maintenance release. Switch away from git:// URLs.
+
 ### v2.10.2
 
 Maintenance release.
