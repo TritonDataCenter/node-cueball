@@ -6,6 +6,12 @@ toc::[]
 
 ## v2.x
 
+### v2.10.4
+
+Maintenance release.
+
+- Reduce SRV no-records retry TTL from 3600s to 60s
+
 ### v2.10.3
 
 Maintenance release. Switch away from git:// URLs.
